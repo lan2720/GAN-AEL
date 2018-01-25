@@ -60,8 +60,8 @@ def padding_inputs(x, y, y_max_len):
     # x 整型二维列表
     x_lens = torch.LongTensor(map(len, x))
     y_lens = torch.zeros(len(y)).long()
-    x_inputs = Variable(torch.zeros(len(x), max(x_lens))).long()
-    y_inputs = Variable(torch.zeros(len(y), y_max_len)).long()
+    x_inputs = Variable(torch.zeros(len(x), max(x_lens)).long(), requires_grad=False)
+    y_inputs = Variable(torch.zeros(len(y), y_max_len).long(), requires_grad=False)
 
     # 输入word id本身已经用0 padding
     for idx, (seq, seq_len) in enumerate(zip(x, x_lens)):

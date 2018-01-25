@@ -13,7 +13,7 @@ from torch.autograd import Variable
 
 from utils import SYM_PAD, SYM_GO, SYM_EOS
 
-from data import batcher, build_vocab, load_vocab, sentence2id
+from data import batcher, build_vocab, load_vocab, sentence2id, id2sentence
 
 # word_embeddings = nn.Embedding(vocab_size, emb_dim, padding_idx=SYM_PAD)
 # E = EncoderRNN(vocab_size, emb_dim, hidden_dim, n_layers, bidirectional=True, variable_lengths=True)
@@ -25,18 +25,19 @@ def mask(x):
     """
     返回x的mask矩阵，即x中为0的部分，全部为0，非0的部分，全部为1
     """
-    return x.gt(Variable(torch.zeros(x.size()).long())).float()
+    return x.gt(Variable(torch.zeros(x.size()).long()).cuda()).float()
 
 def eval():
     pass
 
 def pretrain():
     # post_sentences, response_sentences = load_data_from_file('toy_data')
-    batch_size = 32
+    use_cuda = True
+    batch_size = 128
     num_epoch = 20
-    query_file = 'dataset/post.test'#stc_weibo_train_post'
-    response_file = 'dataset/response.test'#stc_weibo_train_response'
-    vocab_file = 'vocab.172'
+    query_file = 'dataset/weibo/stc_weibo_train_post'
+    response_file = 'dataset/weibo/stc_weibo_train_response'
+    vocab_file = 'vocab.708320'#'vocab.172'
     
 
     if not vocab_file:
@@ -52,7 +53,7 @@ def pretrain():
 
     vocab_size = len(vocab)
     # 这里的max_len仅仅影响decoder的最大长度
-    response_max_len = 20
+    response_max_len = 15
     emb_dim = 128
     hidden_dim = 512
     n_layers = 2
@@ -70,10 +71,14 @@ def pretrain():
     word_embeddings = nn.Embedding(vocab_size, emb_dim, padding_idx=SYM_PAD)
     E = EncoderRNN(vocab_size, emb_dim, hidden_dim, n_layers, bidirectional=True, variable_lengths=True)
     G = Generator(vocab_size, response_max_len, emb_dim, 2*hidden_dim, n_layers)
-
+    
+    if use_cuda:
+        word_embeddings.cuda()
+        E.cuda()
+        G.cuda()
     
 
-    loss_func = nn.NLLLoss()
+    loss_func = nn.CrossEntropyLoss(size_average=False)
     params = list(word_embeddings.parameters()) + list(E.parameters()) + list(G.parameters())
     opt = torch.optim.Adam(params, lr=LR_G)
 
@@ -100,9 +105,24 @@ def pretrain():
             # print "posts_var shape:", posts_var.size()
             # print "responses_var shape:", responses_var.size()
             # 在sentence后面加eos
-            references_var = torch.cat([responses_var, Variable(torch.zeros(responses_var.size(0),1).long())], dim=1)
+            references_var = torch.cat([responses_var, Variable(torch.zeros(responses_var.size(0),1).long(), requires_grad=False)], dim=1)
+
             for idx, length in enumerate(responses_length):
                 references_var[idx, length] = SYM_EOS
+
+            #for p, r_in, r_out in zip(posts_var.data, responses_var.data, references_var.data):
+            #    print 'q: ' + ''.join(id2sentence(p, rev_vocab))
+            #    print 'r_in: ' + ''.join(id2sentence(r_in, rev_vocab))
+            #    print 'r_out: ' + ''.join(id2sentence(r_out, rev_vocab))
+            #    print '*'*30
+
+
+            if use_cuda:
+                posts_var = posts_var.cuda()
+                #posts_length = posts_length.cuda()
+                responses_var = responses_var.cuda()
+                #responses_length = responses_length.cuda()
+                references_var = references_var.cuda()
 
             embedded_post = word_embeddings(posts_var)
             embedded_response = word_embeddings(responses_var)
@@ -110,25 +130,34 @@ def pretrain():
 
             _, dec_init_state = E(embedded_post, input_lengths=posts_length.numpy())
             # G_ideas = Variable(torch.randn(BATCH_SIZE, N_IDEAS))    # random ideas
-            output_dist = G.supervise(embedded_response, dec_init_state, word_embeddings) # [B, T, vocab_size]
-            # print output_dist
-            mask_pos = mask(references_var).unsqueeze(-1).expand_as(output_dist)
+            outputs = G.supervise(embedded_response, dec_init_state, word_embeddings) # [B, T, vocab_size]
+            # [B*T, vocab_size]
+            # [B*T, vocab_size] mask 
+            # [B*T, 1]
+            outputs = outputs.view(-1, vocab_size)
+            mask_pos = mask(references_var).view(-1).unsqueeze(-1)
+            
             # print mask_pos
 
             # output_dist = [B, T, vocab_size]
             # mask = [B, T]
-            masked_output = output_dist*mask_pos
+            masked_output = outputs*(mask_pos.expand_as(outputs))
 
             # [B*T, vocab_size]
-            loss = loss_func(masked_output.view(-1, vocab_size), references_var.view(-1))/posts_var.size(0)
+
+            loss = loss_func(masked_output, references_var.view(-1))/(posts_var.size(0))
 
             opt.zero_grad()
             loss.backward()
             opt.step()
 
             # if step % 50 == 0:
-            char_level_loss = loss/(mask_pos.mean())
-            print 'Step %d, Perplexity: %.2f' % (step, math.exp(char_level_loss))
+            #char_level_loss = loss/(mask_pos.mean())
+            #loss_val = char_level_loss.cpu().data.numpy()[0]
+            ave_seq_len = torch.sum(mask_pos)/(posts_var.size(0))
+            char_loss_val = loss/ave_seq_len
+            #print type(char_level_loss)
+            print 'Step %d, Loss: %.5f Perplexity: %.2f' % (step, loss.cpu().data.numpy()[0], math.exp(char_loss_val.cpu().data.numpy()[0]))
             step = step + 1
 
 if __name__ == '__main__':

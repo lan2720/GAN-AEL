@@ -44,14 +44,14 @@ class Generator(BaseRNN):
         (1) 对抗训练: 这时decoder只需要y_input = [go]即可, 但reference = y
         """
         if isinstance(init_state, tuple):
-            assert init_state[0].shape[2] == self.hidden_dim, "If encoder is bidirectional, \
+            assert init_state[0].size(2) == self.hidden_dim, "If encoder is bidirectional, \
                 decoder hidden size should be 2 * encoder hidden state."
-            batch_size = init_state[0].shape[1]
+            batch_size = init_state[0].size(1)
         else:
-            assert init_state.shape[2] == self.hidden_dim, "If encoder is bidirectional, \
+            assert init_state.size(2) == self.hidden_dim, "If encoder is bidirectional, \
                 decoder hidden size should be 2 * encoder hidden state."
-            batch_size = init_state.shape[1]
-        go_inputs = Variable(torch.ones(batch_size, 1).long()*SYM_GO)
+            batch_size = init_state.size(1)
+        go_inputs = Variable(torch.ones(batch_size, 1).long()*SYM_GO, requires_grad=False).cuda()
         embedded_input = word_embeddings(go_inputs) # [B, 1, emb_dim]
         state = init_state
         outputs = [] # a list of approximate word embeddings(max_len)
@@ -77,14 +77,14 @@ class Generator(BaseRNN):
         (3) 预测: 这时只需要给[go], 不需要reference
         """
         if isinstance(init_state, tuple):
-            assert init_state[0].shape[2] == self.hidden_dim, "If encoder is bidirectional, \
+            assert init_state[0].size(2) == self.hidden_dim, "If encoder is bidirectional, \
                 decoder hidden size should be 2 * encoder hidden state."
-            batch_size = init_state[0].shape[1]
+            batch_size = init_state[0].size(1)
         else:
-            assert init_state.shape[2] == self.hidden_dim, "If encoder is bidirectional, \
+            assert init_state.size(2) == self.hidden_dim, "If encoder is bidirectional, \
                 decoder hidden size should be 2 * encoder hidden state."
-            batch_size = init_state.shape[1]
-        go_inputs = Variable(torch.ones(batch_size, 1).long()*SYM_GO)
+            batch_size = init_state.size(1)
+        go_inputs = Variable(torch.ones(batch_size, 1).long()*SYM_GO, requires_grad=False).cuda()
         embedded_input = word_embeddings(go_inputs) # [B, 1, emb_dim]
         state = init_state
         outputs = [] # a list of approximate word embeddings(max_len)
@@ -116,15 +116,15 @@ class Generator(BaseRNN):
         """
         # assert references.size(1) == (self.max_len - 1), "When supervise learning, length of references should be (max_len - 1)."
         if isinstance(init_state, tuple):
-            assert init_state[0].shape[2] == self.hidden_dim, "If encoder is bidirectional, \
+            assert init_state[0].size(2) == self.hidden_dim, "If encoder is bidirectional, \
                 decoder hidden size should be 2 * encoder hidden state."
-            batch_size = init_state[0].shape[1]
+            batch_size = init_state[0].size(1)
         else:
-            assert init_state.shape[2] == self.hidden_dim, "If encoder is bidirectional, \
+            assert init_state.size(2) == self.hidden_dim, "If encoder is bidirectional, \
                 decoder hidden size should be 2 * encoder hidden state."
-            batch_size = init_state.shape[1]
+            batch_size = init_state.size(1)
         ref_inputs = list(torch.split(dec_inputs, 1, dim=1)) # a list of [B, 1, emb_dim]
-        go_inputs = Variable(torch.ones(batch_size, 1).long()*SYM_GO)
+        go_inputs = Variable(torch.ones(batch_size, 1).long()*SYM_GO, requires_grad=False).cuda()
         embedded_inputs = [word_embeddings(go_inputs)] + ref_inputs
         state = init_state
         outputs = [] # a list of approximate word embeddings(max_len)
