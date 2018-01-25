@@ -133,6 +133,7 @@ def pretrain():
 
 if __name__ == '__main__':
     pretrain()
+    print "test"
 
 
 """
