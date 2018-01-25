@@ -1,0 +1,4 @@
+dataset/
+*.pyc
+.DS*
+vocab.*
