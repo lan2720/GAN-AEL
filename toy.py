@@ -33,7 +33,7 @@ def eval():
 def pretrain():
     # post_sentences, response_sentences = load_data_from_file('toy_data')
     use_cuda = True
-    batch_size = 128
+    batch_size = 30
     num_epoch = 20
     query_file = 'dataset/weibo/stc_weibo_train_post'
     response_file = 'dataset/weibo/stc_weibo_train_response'
@@ -78,7 +78,7 @@ def pretrain():
         G.cuda()
     
 
-    loss_func = nn.CrossEntropyLoss(size_average=False)
+    loss_func = nn.NLLLoss(size_average=False)
     params = list(word_embeddings.parameters()) + list(E.parameters()) + list(G.parameters())
     opt = torch.optim.Adam(params, lr=LR_G)
 
@@ -130,11 +130,11 @@ def pretrain():
 
             _, dec_init_state = E(embedded_post, input_lengths=posts_length.numpy())
             # G_ideas = Variable(torch.randn(BATCH_SIZE, N_IDEAS))    # random ideas
-            outputs = G.supervise(embedded_response, dec_init_state, word_embeddings) # [B, T, vocab_size]
+            log_softmax_outputs = G.supervise(embedded_response, dec_init_state, word_embeddings) # [B, T, vocab_size]
             # [B*T, vocab_size]
             # [B*T, vocab_size] mask 
             # [B*T, 1]
-            outputs = outputs.view(-1, vocab_size)
+            outputs = log_softmax_outputs.view(-1, vocab_size)
             mask_pos = mask(references_var).view(-1).unsqueeze(-1)
             
             # print mask_pos

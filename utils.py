@@ -25,11 +25,13 @@ class ApproximateEmbeddingLayer(nn.Module):
         super(ApproximateEmbeddingLayer, self).__init__()
         self.hidden_dim = hidden_dim
         self.vocab_size = vocab_size
-        self.weight = Parameter(torch.Tensor(self.hidden_dim, self.vocab_size))
+        #self.weight = Parameter(torch.Tensor(self.hidden_dim, self.vocab_size))
         # noise shape is determined by h_i (batch_size, hid_size)
-        self.noise = Parameter(torch.Tensor(self.hidden_dim)) # h_i = (batch_size, hid_dim)每行对应相加
-        self.bias = Parameter(torch.Tensor(self.vocab_size))
-        self.reset_parameters()
+        #self.noise = Parameter(torch.Tensor(self.hidden_dim)) # h_i = (batch_size, hid_dim)每行对应相加
+        #self.bias = Parameter(torch.Tensor(self.vocab_size))
+        self.output_layer = nn.Linear(hidden_dim, vocab_size)
+        self.dist_layer = nn.LogSoftmax()
+        #self.reset_parameters()
 
 
     def reset_parameters(self):
@@ -38,15 +40,18 @@ class ApproximateEmbeddingLayer(nn.Module):
         normal(self.bias.data)
 
 
-    def forward(self, input, embeddings):
+    def forward(self, inputs, embeddings):
         # input shape = (batch_size, hid_size)
-        noised_input = input + self.noise.unsqueeze(0).expand_as(input)
-        score = torch.mm(noised_input, self.weight)
-        score += self.bias.unsqueeze(0).expand_as(score)
-        socre = nn.functional.relu(score)
-        normalized_weights = F.softmax(score)
-        approximate_embeddings = torch.mm(normalized_weights, embeddings.weight) # 得到(batch_size, emb_size)
-        return (score, approximate_embeddings) # [B, vocab_size]
+        #noised_input = input + self.noise.unsqueeze(0).expand_as(input)
+        #score = torch.mm(noised_input, self.weight)
+        #score += self.bias.unsqueeze(0).expand_as(score)
+        #socre = nn.functional.relu(score)
+        #normalized_weights = F.softmax(score)
+        #approximate_embeddings = torch.mm(normalized_weights, embeddings.weight) # 得到(batch_size, emb_size)
+        score = self.output_layer(inputs)
+        outputs = self.dist_layer(score)
+        return (outputs, None)
+        #return (score, approximate_embeddings) # [B, vocab_size]
 
 
     def __repr__(self):
