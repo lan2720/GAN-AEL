@@ -1,4 +1,5 @@
 dataset/
+log/
 *.pyc
 .DS*
 vocab.*

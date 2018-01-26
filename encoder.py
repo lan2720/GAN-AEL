@@ -24,6 +24,7 @@ class EncoderRNN(BaseRNN):
         if self.variable_lengths:
             assert input_lengths is not None, "when input's length is variable, 'input_lengths' is needed when using EncoderRNN."
             embedded_inputs = nn.utils.rnn.pack_padded_sequence(embedded_inputs, input_lengths, batch_first=True)
+        #hidden = self.init_hidden()
         output, hidden = self.rnn(embedded_inputs)
         if self.variable_lengths:
             output, _ = nn.utils.rnn.pad_packed_sequence(output, batch_first=True)
@@ -38,7 +39,12 @@ class EncoderRNN(BaseRNN):
             hidden = self._fix_hidden(hidden)
         # 这其中，由于batch中各个case长度不同，hidden中存在有些行是全0的，那么，给decoder初始化时也都是全0初始化
         return output, hidden
-
+    
+         
+    def init_hidden(self):
+        hidden = Variable(torch.zeros(self.n_layers, 1, self.hidden_dim))
+        hidden = hidden.cuda()
+        return hidden
 
     def _fix_hidden(self, h):
         #  the encoder hidden is  (layers*directions) x batch x dim

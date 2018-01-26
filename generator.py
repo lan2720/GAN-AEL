@@ -31,7 +31,7 @@ class Generator(BaseRNN):
                                  batch_first=True, dropout=dropout_p, bidirectional=False)
         # approximate embedding layer
         self.ael = ApproximateEmbeddingLayer(hidden_dim, vocab_size)
-        self.init_params()
+        #self.init_params()
 
     def forward(self, init_state, word_embeddings):
         """
@@ -93,10 +93,10 @@ class Generator(BaseRNN):
             # output = [B, 1, hidden_dim], state有可能是tuple, 每个元素(num_layers, B, hidden_dim)
             word_distribution, _ = self.ael(output.squeeze(1), word_embeddings) # [B, emb_dim]
             # [B, vocab_size]
-            _, ids = torch.max(word_distribution, dim=1, keepdim=True) # [B, 1]
-            outputs.append(ids)
+            #_, ids = torch.max(word_distribution, dim=1, keepdim=True) # [B, 1]
+            outputs.append(word_distribution)
             embedded_input = embedded_input.unsqueeze(1)
-        return torch.cat(outputs, dim=1) # [B, max_len]
+        return torch.stack(outputs, dim=1) # [B, max_len, vocab_size]
         # 预测阶段，输出的是每一时刻最大概率出现的词
 
 

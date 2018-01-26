@@ -29,8 +29,8 @@ class ApproximateEmbeddingLayer(nn.Module):
         # noise shape is determined by h_i (batch_size, hid_size)
         #self.noise = Parameter(torch.Tensor(self.hidden_dim)) # h_i = (batch_size, hid_dim)每行对应相加
         #self.bias = Parameter(torch.Tensor(self.vocab_size))
-        self.output_layer = nn.Linear(hidden_dim, vocab_size)
-        self.dist_layer = nn.LogSoftmax()
+        self.out = nn.Linear(hidden_dim, vocab_size)
+        #self.dist_layer = nn.LogSoftmax()
         #self.reset_parameters()
 
 
@@ -42,15 +42,17 @@ class ApproximateEmbeddingLayer(nn.Module):
 
     def forward(self, inputs, embeddings):
         # input shape = (batch_size, hid_size)
-        #noised_input = input + self.noise.unsqueeze(0).expand_as(input)
+        #noise = torch.cuda.Tensor(self.hidden_dim) # h_i = (batch_size, hid_dim)每行对应相加
+        #noised_input = inputs + noise.unsqueeze(0).expand_as(inputs)
         #score = torch.mm(noised_input, self.weight)
         #score += self.bias.unsqueeze(0).expand_as(score)
         #socre = nn.functional.relu(score)
-        #normalized_weights = F.softmax(score)
-        #approximate_embeddings = torch.mm(normalized_weights, embeddings.weight) # 得到(batch_size, emb_size)
-        score = self.output_layer(inputs)
-        outputs = self.dist_layer(score)
-        return (outputs, None)
+        score = self.out(inputs)
+        normalized_weights = F.log_softmax(score)
+        approximate_embeddings = torch.mm(F.softmax(score), embeddings.weight) # 得到(batch_size, emb_size)
+        #score = self.output_layer(score)
+        #outputs = self.dist_layer(score)
+        return (normalized_weights, approximate_embeddings)
         #return (score, approximate_embeddings) # [B, vocab_size]
 
 
