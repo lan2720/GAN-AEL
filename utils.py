@@ -42,12 +42,11 @@ class ApproximateEmbeddingLayer(nn.Module):
 
     def forward(self, inputs, embeddings):
         # input shape = (batch_size, hid_size)
-        #noise = torch.cuda.Tensor(self.hidden_dim) # h_i = (batch_size, hid_dim)每行对应相加
-        #noised_input = inputs + noise.unsqueeze(0).expand_as(inputs)
+        noise = Variable(torch.rand(inputs.size()).uniform_(-0.05, 0.05), requires_grad=False).cuda() # h_i = (batch_size, hid_dim)每行对应相加
         #score = torch.mm(noised_input, self.weight)
         #score += self.bias.unsqueeze(0).expand_as(score)
         #socre = nn.functional.relu(score)
-        score = self.out(inputs)
+        score = self.out(inputs+noise)
         normalized_weights = F.log_softmax(score)
         approximate_embeddings = torch.mm(F.softmax(score), embeddings.weight) # 得到(batch_size, emb_size)
         #score = self.output_layer(score)
