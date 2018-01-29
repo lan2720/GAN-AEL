@@ -7,19 +7,23 @@ USEAGE:
 import os
 import pickle
 import argparse
+import numpy as np
+
 from data import batcher, load_vocab, sentence2id, id2sentence
 from toy import reload_model
 
 import torch
 import torch.nn as nn
+from torch.autograd import Variable
 
 from encoder import EncoderRNN, padding_inputs
 from generator import Generator
 
-from utils import SYM_PAD
+from utils import SYM_PAD, SYM_EOS, SYM_GO, SYM_UNK
+
 USE_CUDA = True
 
-def predict(test_post_file, vocab, rev_vocab, word_embeddings, encoder, generator, algo='greedy', output_file=None):
+def predict(test_post_file, max_len, vocab, rev_vocab, word_embeddings, encoder, generator, output_file=None):
     # data generator
     test_data_generator = batcher(1, test_post_file, response_file=None) 
    
@@ -42,23 +46,91 @@ def predict(test_post_file, vocab, rev_vocab, word_embeddings, encoder, generato
         _, dec_init_state = encoder(embedded_post, input_lengths=posts_length.numpy())
         log_softmax_outputs = generator.inference(dec_init_state, word_embeddings) # [B, T, vocab_size]
         
-        if algo == 'greedy':
-            # or 'beam'
-            _, results = torch.max(log_softmax_outputs, dim=2) # [B, T]
-        else:
-            pass
-        
-        response_sentence = id2sentence(results.cpu().data.numpy().reshape(-1).tolist(), rev_vocab)
-        if not output_file:
-            print('*******************************************************')
-            print "post:" + ''.join(post_sentence[0])
-            print "response:" + ''.join(response_sentence)
-        else:
-            fo.write("post: %s\nresponse: %s\n\n" % (
-                ''.join(post_sentence[0]), 
-                '',join(response_sentence)))
-    if output_file:
-        fo.close()
+        hyps, _ = beam_search(dec_init_state, max_len, word_embeddings, generator, nbest=1)
+        results = []
+        for h in hyps:
+            results.append(id2sentence(h[0], rev_vocab))
+
+        print('*******************************************************')
+        print "post:" + ''.join(post_sentence[0])
+        print "response:\n" + '\n'.join([''.join(r) for r in results])
+        print
+
+#        if algo == 'greedy':
+#            # or 'beam'
+#            _, results = torch.max(log_softmax_outputs, dim=2) # [B, T]
+#        elif algo == 'beam':
+#            hyps, _ = beam_search(dec_init_state, max_len, word_embeddings, generator)
+#            
+#        response_sentence = id2sentence(results.cpu().data.numpy().reshape(-1).tolist(), rev_vocab)
+#        if not output_file:
+#            print('*******************************************************')
+#            print "post:" + ''.join(post_sentence[0])
+#            print "response:" + ''.join(response_sentence)
+#        else:
+#            fo.write("post: %s\nresponse: %s\n\n" % (
+#                ''.join(post_sentence[0]), 
+#                '',join(response_sentence)))
+#    if output_file:
+#        fo.close()
+
+def beam_search(dec_init_state, max_len, word_embeddings, generator, beam=5, penalty=1.0, nbest=1, use_cuda=True):
+    """
+    the code is referred by: 
+    https://github.com/dialogtekgeek/DSTC6-End-to-End-Conversation-Modeling/blob/master/ChatbotBaseline/tools/seq2seq_model.py
+    dec_init_state comes from encoder
+    """
+    # input [B, T, emb_dim]
+    go_i = Variable(torch.LongTensor([[SYM_GO]]), requires_grad=False)
+    eos_i = Variable(torch.LongTensor([[SYM_EOS]]), requires_grad=False)
+    if use_cuda:
+        go_i = go_i.cuda()
+        eos_i = eos_i.cuda()
+
+    ds = generator.update((None, dec_init_state), word_embeddings(go_i))
+    hyplist = [([], 0., ds)]
+    best_state = None
+    comp_hyplist = []
+    for l in range(max_len):
+        new_hyplist = []
+        argmin = 0
+        for out, lp, st in hyplist:
+            logp = generator.predict(st, word_embeddings)
+            #[vocab_size,]
+            lp_vec = logp.cpu().data.numpy()[0] + lp
+            if l > 0:
+                new_lp = lp_vec[SYM_EOS] + penalty*(len(out)+1)
+                new_st = generator.update(st, word_embeddings(eos_i))
+                comp_hyplist.append((out, new_lp))
+                if best_state is None or best_state[0] < new_lp:
+                    best_state = (new_lp, new_st)
+            
+            for o in np.argsort(lp_vec)[::-1]:
+                if o == SYM_UNK or o == SYM_EOS:
+                    continue
+                new_lp = lp_vec[o]
+                if len(new_hyplist) == beam:
+                    if new_hyplist[argmin][1] <  new_lp:
+                        new_st = generator.update(st, 
+                                word_embeddings(Variable(torch.LongTensor([[o]]), requires_grad=False).cuda()))
+                        new_hyplist[argmin] = (out+[o], new_lp, new_st)
+                        argmin = min(enumerate(new_hyplist), key=lambda h:h[1][1])[0]
+                    else:
+                        break
+                else:
+                    new_st = generator.update(st, 
+                            word_embeddings(Variable(torch.LongTensor([[o]]), requires_grad=False).cuda()))
+                    new_hyplist.append((out+[o], new_lp, new_st))
+                    if len(new_hyplist) == beam:
+                        argmin = min(enumerate(new_hyplist), key=lambda h:h[1][1])[0]
+        hyplist = new_hyplist
+    
+    if len(comp_hyplist):
+        maxhyps = sorted(comp_hyplist, key=lambda h: -h[1])[:nbest]
+        return maxhyps, best_state[1]
+    else:
+        return [([], 0)], None
+
 
 def main():
     argparser = argparse.ArgumentParser()
@@ -97,6 +169,7 @@ def main():
     reload_model(word_embeddings, E, G, new_args.load_path, new_args.load_epoch)
     
     predict(new_args.test_query_file,
+            args.response_max_len,
             vocab, rev_vocab,
             word_embeddings, E, G,
             new_args.dec_algorithm,

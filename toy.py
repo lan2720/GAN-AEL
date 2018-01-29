@@ -41,7 +41,8 @@ def mask(x):
 
 def eval(valid_query_file, valid_response_file, batch_size,
             word_embeddings, E, G, 
-            loss_func, use_cuda, vocab):
+            loss_func, use_cuda, 
+            vocab, response_max_len):
     logger.info('---------------------validating--------------------------')
     logger.info('Loading valid data from %s and %s' % (valid_query_file, valid_response_file))
     
@@ -61,7 +62,7 @@ def eval(valid_query_file, valid_response_file, batch_size,
         post_ids = [sentence2id(sent, vocab) for sent in post_sentences]
         response_ids = [sentence2id(sent, vocab) for sent in response_sentences]
         posts_var, posts_length = padding_inputs(post_ids, None)
-        responses_var, responses_length = padding_inputs(response_ids, args.response_max_len)
+        responses_var, responses_length = padding_inputs(response_ids, response_max_len)
         
         # sort by post length
         posts_length, perms_idx = posts_length.sort(0, descending=True)
@@ -69,7 +70,7 @@ def eval(valid_query_file, valid_response_file, batch_size,
         responses_var = responses_var[perms_idx]
         responses_length = responses_length[perms_idx]
 
-        if args.use_cuda:
+        if use_cuda:
             posts_var = posts_var.cuda()
             responses_var = responses_var.cuda()
 
@@ -93,8 +94,6 @@ def save_model(word_embeddings, encoder, generator, save_dir, epoch):
     torch.save(word_embeddings.state_dict(), os.path.join(save_dir, 'epoch%d.word_embeddings.params.pkl' % epoch))
     torch.save(encoder.state_dict(), os.path.join(save_dir, 'epoch%d.encoder.params.pkl' % epoch))
     torch.save(generator.state_dict(), os.path.join(save_dir, 'epoch%d.generator.params.pkl' % epoch))
-    with open('args.pkl', 'wb') as f:
-        pickle.dump(args, f)
     logger.info('Save model (epoch = %d) in %s' % (epoch, save_dir))
     
 
@@ -218,12 +217,13 @@ def pretrain():
             try:
                 post_sentences, response_sentences = train_data_generator.next()
             except StopIteration:
-                eval(args.valid_query_file, args.valid_response_file, args.batch_size, 
-                        word_embeddings, E, G, loss_func, args.use_cuda, vocab)
                 # save model
                 save_model(word_embeddings, E, G, exp_dirname, epoch=e) 
+                # evaluation
+                eval(args.valid_query_file, args.valid_response_file, args.batch_size, 
+                        word_embeddings, E, G, loss_func, args.use_cuda, vocab, args.response_max_len)
                 break
-
+            
 
             post_ids = [sentence2id(sent, vocab) for sent in post_sentences]
             response_ids = [sentence2id(sent, vocab) for sent in response_sentences]
@@ -241,6 +241,13 @@ def pretrain():
             for idx, length in enumerate(responses_length):
                 references_var[idx, length] = SYM_EOS
 
+
+            # show case
+            #for p, r, ref in zip(posts_var.data.numpy()[:10], responses_var.data.numpy()[:10], references_var.data.numpy()[:10]):
+            #    print ''.join(id2sentence(p, rev_vocab))
+            #    print ''.join(id2sentence(r, rev_vocab))
+            #    print ''.join(id2sentence(ref, rev_vocab))
+            #    print
 
             if args.use_cuda:
                 posts_var = posts_var.cuda()
@@ -274,7 +281,6 @@ def pretrain():
                 total_case_num = 0
                 cur_time = time.time()
             step = step + 1
-
 
 if __name__ == '__main__':
     pretrain()

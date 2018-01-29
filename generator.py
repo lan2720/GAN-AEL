@@ -95,6 +95,14 @@ class Generator(BaseRNN):
         return torch.stack(outputs, dim=1) # [B, max_len, vocab_size]
         # 预测阶段，输出的是每一时刻最大概率出现的词
 
+    def update(self, s, embedded_i):
+        # s = (output, st)
+        # embedded_i = [B, T, emb_dim]
+        return self.rnn(embedded_i, s[1])
+
+    def predict(self, s, word_embeddings):
+        logp, _ = self.ael(s[0].squeeze(1), word_embeddings)    
+        return logp # [B, vocab_size]
 
     def supervise(self, dec_inputs, init_state, word_embeddings):
         """
