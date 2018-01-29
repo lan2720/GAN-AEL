@@ -3,3 +3,4 @@ exp/
 *.pyc
 .DS*
 vocab.*
+*.out
