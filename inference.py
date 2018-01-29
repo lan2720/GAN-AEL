@@ -172,7 +172,6 @@ def main():
             args.response_max_len,
             vocab, rev_vocab,
             word_embeddings, E, G,
-            new_args.dec_algorithm,
             new_args.output_file)
 
 if __name__ == '__main__':
