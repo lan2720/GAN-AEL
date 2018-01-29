@@ -21,8 +21,6 @@ from torch.autograd import Variable
 
 import argparse
 
-
-
 # user the root logger
 logger = logging.getLogger("lan2720")
 
@@ -70,18 +68,26 @@ def eval(valid_query_file, valid_response_file, batch_size,
         responses_var = responses_var[perms_idx]
         responses_length = responses_length[perms_idx]
 
+        # 在sentence后面加eos
+        references_var = torch.cat([responses_var, Variable(torch.zeros(responses_var.size(0),1).long(), requires_grad=False)], dim=1)
+        for idx, length in enumerate(responses_length):
+            references_var[idx, length] = SYM_EOS
+        
+
         if use_cuda:
             posts_var = posts_var.cuda()
             responses_var = responses_var.cuda()
+            references_var = references_var.cuda()
 
         embedded_post = word_embeddings(posts_var)
+        embedded_response = word_embeddings(responses_var)
         _, dec_init_state = E(embedded_post, input_lengths=posts_length.numpy())
-        log_softmax_outputs = G.inference(dec_init_state, word_embeddings) # [B, T, vocab_size]
+        log_softmax_outputs = G.supervise(embedded_response, dec_init_state, word_embeddings) # [B, T, vocab_size]
         
         outputs = log_softmax_outputs.view(-1, len(vocab))
-        mask_pos = mask(responses_var).view(-1).unsqueeze(-1)
+        mask_pos = mask(references_var).view(-1).unsqueeze(-1)
         masked_output = outputs*(mask_pos.expand_as(outputs))
-        loss = loss_func(masked_output, responses_var.view(-1))
+        loss = loss_func(masked_output, references_var.view(-1))
 
         sum_loss += loss.cpu().data.numpy()[0]
         example_num += posts_var.size(0)
@@ -237,7 +243,6 @@ def pretrain():
 
             # 在sentence后面加eos
             references_var = torch.cat([responses_var, Variable(torch.zeros(responses_var.size(0),1).long(), requires_grad=False)], dim=1)
-
             for idx, length in enumerate(responses_length):
                 references_var[idx, length] = SYM_EOS
 
