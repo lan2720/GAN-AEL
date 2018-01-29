@@ -58,36 +58,28 @@ class EncoderRNN(BaseRNN):
             return h
 
 
-def padding_inputs(x, y, y_max_len):
+def padding_inputs(x, max_len=None):#y, y_max_len):
     """
-    x,y: 均为整型的二维矩阵
-    y_max_len: 由于x根据一个batch中最长的句子进行padding，因此不需要给定max_len，但是y需要给定
+    x: 均为整型的二维矩阵
+    max_len: default=None 由于x根据一个batch中最长的句子进行padding，因此不需要给定max_len
+    when max_len != None, padding according to the max_len
     """
     # x 整型二维列表
     x_lens = torch.LongTensor(map(len, x))
-    y_lens = torch.zeros(len(y)).long()
-    x_inputs = Variable(torch.zeros(len(x), max(x_lens)).long(), requires_grad=False)
-    y_inputs = Variable(torch.zeros(len(y), y_max_len).long(), requires_grad=False)
+    if not max_len:
+        max_len = max(x_lens)
+    
+    x_inputs = Variable(torch.zeros(len(x), max_len).long(), requires_grad=False)
 
     # 输入word id本身已经用0 padding
     for idx, (seq, seq_len) in enumerate(zip(x, x_lens)):
-        x_inputs[idx, :seq_len] = torch.LongTensor(seq)
-
-    for idx, seq in enumerate(y):
-        if len(seq) >= y_max_len:
-            y_inputs[idx] =  torch.LongTensor(seq[:y_max_len])
-            y_lens[idx] = y_max_len
+        if seq_len > max_len:
+            x_inputs[idx, :max_len] = torch.LongTensor(seq[:max_len])
+            x_lens[idx] = max_len
         else:
-            y_inputs[idx, :len(seq)] = torch.LongTensor(seq)
-            y_lens[idx] = len(seq)
+            x_inputs[idx, :seq_len] = torch.LongTensor(seq)
 
-
-    x_lens, perms_idx = x_lens.sort(0, descending=True)
-    x_inputs = x_inputs[perms_idx]
-    y_inputs = y_inputs[perms_idx]
-    y_lens = y_lens[perms_idx]
-
-    return x_inputs, x_lens, y_inputs, y_lens
+    return x_inputs, x_lens
 
 
 if __name__ == '__main__':

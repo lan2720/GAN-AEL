@@ -4,6 +4,7 @@ import os
 import sys
 import math
 import time
+import pickle
 import logging
 import tqdm_logging
 
@@ -20,44 +21,6 @@ from torch.autograd import Variable
 
 import argparse
 
-# Parse command line arguments
-argparser = argparse.ArgumentParser()
-
-# train
-argparser.add_argument('--mode', '-m', choices=('pretrain', 'adversarial', 'inference'),
-                        type=str, required=True)
-argparser.add_argument('--batch_size', '-b', type=int, default=168)
-argparser.add_argument('--num_epoch', '-e', type=int, default=10)
-argparser.add_argument('--print_every', type=int, default=100)
-argparser.add_argument('--use_cuda', default=True)
-argparser.add_argument('--g_learning_rate', '-glr', type=float, default=0.001)
-argparser.add_argument('--d_learning_rate', '-dlr', type=float, default=0.001)
-
-# resume
-argparser.add_argument('--resume', action='store_true', dest='resume')
-argparser.add_argument('--resume_dir', type=str)
-argparser.add_argument('--resume_epoch', type=int)
-
-# save
-argparser.add_argument('--exp_dir', type=str, required=True)
-
-# model
-argparser.add_argument('--emb_dim', type=int, default=128)
-argparser.add_argument('--hidden_dim', type=int, default=256)
-argparser.add_argument('--n_layers', type=int, default=1)
-argparser.add_argument('--response_max_len', type=int, default=15)
-
-
-# data
-argparser.add_argument('--train_query_file', '-tqf', type=str, required=True)
-argparser.add_argument('--train_response_file', '-trf', type=str, required=True)
-argparser.add_argument('--valid_query_file', '-vqf', type=str, required=True)
-argparser.add_argument('--valid_response_file', '-vrf', type=str, required=True)
-argparser.add_argument('--vocab_file', '-vf', type=str, default='')
-argparser.add_argument('--max_vocab_size', '-mv', type=int, default=100000)
-
-
-args = argparser.parse_args()
 
 
 # user the root logger
@@ -82,7 +45,7 @@ def eval(valid_query_file, valid_response_file, batch_size,
     logger.info('---------------------validating--------------------------')
     logger.info('Loading valid data from %s and %s' % (valid_query_file, valid_response_file))
     
-    valid_data_generator = batcher(valid_query_file, valid_response_file, batch_size)
+    valid_data_generator = batcher(batch_size, valid_query_file, valid_response_file)
     
     sum_loss = 0.0
     valid_char_num = 0
@@ -97,7 +60,14 @@ def eval(valid_query_file, valid_response_file, batch_size,
 
         post_ids = [sentence2id(sent, vocab) for sent in post_sentences]
         response_ids = [sentence2id(sent, vocab) for sent in response_sentences]
-        posts_var, posts_length, responses_var, responses_length = padding_inputs(post_ids, response_ids, args.response_max_len)
+        posts_var, posts_length = padding_inputs(post_ids, None)
+        responses_var, responses_length = padding_inputs(response_ids, args.response_max_len)
+        
+        # sort by post length
+        posts_length, perms_idx = posts_length.sort(0, descending=True)
+        posts_var = posts_var[perms_idx]
+        responses_var = responses_var[perms_idx]
+        responses_length = responses_length[perms_idx]
 
         if args.use_cuda:
             posts_var = posts_var.cuda()
@@ -123,6 +93,8 @@ def save_model(word_embeddings, encoder, generator, save_dir, epoch):
     torch.save(word_embeddings.state_dict(), os.path.join(save_dir, 'epoch%d.word_embeddings.params.pkl' % epoch))
     torch.save(encoder.state_dict(), os.path.join(save_dir, 'epoch%d.encoder.params.pkl' % epoch))
     torch.save(generator.state_dict(), os.path.join(save_dir, 'epoch%d.generator.params.pkl' % epoch))
+    with open('args.pkl', 'wb') as f:
+        pickle.dump(args, f)
     logger.info('Save model (epoch = %d) in %s' % (epoch, save_dir))
     
 
@@ -140,6 +112,44 @@ def reload_model(word_embeddings, encoder, generator, reload_dir, epoch):
 
 
 def pretrain():
+    # Parse command line arguments
+    argparser = argparse.ArgumentParser()
+
+    # train
+    argparser.add_argument('--mode', '-m', choices=('pretrain', 'adversarial', 'inference'),
+                            type=str, required=True)
+    argparser.add_argument('--batch_size', '-b', type=int, default=168)
+    argparser.add_argument('--num_epoch', '-e', type=int, default=10)
+    argparser.add_argument('--print_every', type=int, default=100)
+    argparser.add_argument('--use_cuda', default=True)
+    argparser.add_argument('--g_learning_rate', '-glr', type=float, default=0.001)
+    argparser.add_argument('--d_learning_rate', '-dlr', type=float, default=0.001)
+
+    # resume
+    argparser.add_argument('--resume', action='store_true', dest='resume')
+    argparser.add_argument('--resume_dir', type=str)
+    argparser.add_argument('--resume_epoch', type=int)
+
+    # save
+    argparser.add_argument('--exp_dir', type=str, required=True)
+
+    # model
+    argparser.add_argument('--emb_dim', type=int, default=128)
+    argparser.add_argument('--hidden_dim', type=int, default=256)
+    argparser.add_argument('--n_layers', type=int, default=1)
+    argparser.add_argument('--response_max_len', type=int, default=15)
+
+
+    # data
+    argparser.add_argument('--train_query_file', '-tqf', type=str, required=True)
+    argparser.add_argument('--train_response_file', '-trf', type=str, required=True)
+    argparser.add_argument('--valid_query_file', '-vqf', type=str, required=True)
+    argparser.add_argument('--valid_response_file', '-vrf', type=str, required=True)
+    argparser.add_argument('--vocab_file', '-vf', type=str, default='')
+    argparser.add_argument('--max_vocab_size', '-mv', type=int, default=100000)
+    
+    args = argparser.parse_args()
+    
     # set up the output directory
     exp_dirname = os.path.join(args.exp_dir, args.mode, time.strftime("%Y-%m-%d-%H-%M-%S"))
     os.makedirs(exp_dirname)
@@ -191,9 +201,14 @@ def pretrain():
     else:
         start_epoch = 0
 
+    # dump args
+    with open(os.path.join(exp_dirname, 'args.pkl'), 'wb') as f:
+        pickle.dump(args, f)
+    
+
     for e in range(start_epoch, args.num_epoch):
         logger.info('---------------------training--------------------------')
-        train_data_generator = batcher(args.train_query_file, args.train_response_file, args.batch_size)
+        train_data_generator = batcher(args.batch_size, args.train_query_file, args.train_response_file)
         logger.info("Epoch: %d/%d" % (e, args.num_epoch))
         step = 0
         total_loss = 0.0
@@ -212,7 +227,14 @@ def pretrain():
 
             post_ids = [sentence2id(sent, vocab) for sent in post_sentences]
             response_ids = [sentence2id(sent, vocab) for sent in response_sentences]
-            posts_var, posts_length, responses_var, responses_length = padding_inputs(post_ids, response_ids, args.response_max_len)
+            posts_var, posts_length = padding_inputs(post_ids, None)
+            responses_var, responses_length = padding_inputs(response_ids, args.response_max_len)
+            # sort by post length
+            posts_length, perms_idx = posts_length.sort(0, descending=True)
+            posts_var = posts_var[perms_idx]
+            responses_var = responses_var[perms_idx]
+            responses_length = responses_length[perms_idx]
+
             # 在sentence后面加eos
             references_var = torch.cat([responses_var, Variable(torch.zeros(responses_var.size(0),1).long(), requires_grad=False)], dim=1)
 

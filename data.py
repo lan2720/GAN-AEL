@@ -4,39 +4,52 @@ import jieba
 from collections import Counter
 import itertools #import from_iterable
 
-def batcher(query_file, response_file, batch_size, seperated=True):
+def batcher(batch_size, query_file, response_file=None, seperated=True):
     queries = []
-    responses = []
     fq = open(query_file, 'rb')
-    fr = open(response_file, 'rb')
+    
+    if response_file:
+        responses = []
+        fr = open(response_file, 'rb')
+    
     while True:
         qline = fq.readline()
-        rline = fr.readline()
-        if qline == '' or rline == '':
+        if qline == '':
             break
 
         if seperated:
             queries.append(qline.strip().decode('utf-8').split())
         else:
             queries.append(list(jieba.cut(qline.strip()), cut_all=False))
-
-        if seperated:
-            responses.append(rline.strip().decode('utf-8').split())
-        else:
-            responses.append(list(jieba.cut(rline.strip()), cut_all=False))
+        
+        if response_file:
+            rline = fr.readline()
+            if seperated:
+                responses.append(rline.strip().decode('utf-8').split())
+            else:
+                responses.append(list(jieba.cut(rline.strip()), cut_all=False))
 
         if len(queries) == batch_size:
-            assert len(queries) == len(responses), 'the size of queries and \
+            if response_file:
+                assert len(queries) == len(responses), 'the size of queries and \
                     the size of responses should be the same in one batch.'
-            yield (queries, responses)
-            queries = []
-            responses = []
+                yield (queries, responses)
+                queries = []
+                responses = []
+            else:
+                yield queries
+                queries = []
+
     fq.close()
-    fr.close()
-    if queries and responses:
-        assert len(queries) == len(responses), 'the size of queries and \
+    if response_file:
+        fr.close()
+    if queries:
+        if response_file:
+            assert len(queries) == len(responses), 'the size of queries and \
                 the size of responses should be the same in one batch.'
-        yield (queries, responses)
+            yield (queries, responses)
+        else:
+            yield queries
            
 
 def pretty_print(queries, responses):
