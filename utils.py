@@ -25,14 +25,7 @@ class ApproximateEmbeddingLayer(nn.Module):
         super(ApproximateEmbeddingLayer, self).__init__()
         self.hidden_dim = hidden_dim
         self.vocab_size = vocab_size
-        #self.weight = Parameter(torch.Tensor(self.hidden_dim, self.vocab_size))
-        # noise shape is determined by h_i (batch_size, hid_size)
-        #self.noise = Parameter(torch.Tensor(self.hidden_dim)) # h_i = (batch_size, hid_dim)每行对应相加
-        #self.bias = Parameter(torch.Tensor(self.vocab_size))
         self.out = nn.Linear(hidden_dim, vocab_size)
-        #self.dist_layer = nn.LogSoftmax()
-        #self.reset_parameters()
-
 
     def reset_parameters(self):
         normal(self.weight.data)
@@ -43,16 +36,10 @@ class ApproximateEmbeddingLayer(nn.Module):
     def forward(self, inputs, embeddings):
         # input shape = (batch_size, hid_size)
         noise = Variable(torch.rand(inputs.size()).uniform_(-0.05, 0.05), requires_grad=False).cuda() # h_i = (batch_size, hid_dim)每行对应相加
-        #score = torch.mm(noised_input, self.weight)
-        #score += self.bias.unsqueeze(0).expand_as(score)
-        #socre = nn.functional.relu(score)
         score = self.out(inputs+noise)
         normalized_weights = F.log_softmax(score)
         approximate_embeddings = torch.mm(F.softmax(score), embeddings.weight) # 得到(batch_size, emb_size)
-        #score = self.output_layer(score)
-        #outputs = self.dist_layer(score)
         return (normalized_weights, approximate_embeddings)
-        #return (score, approximate_embeddings) # [B, vocab_size]
 
 
     def __repr__(self):
@@ -64,8 +51,3 @@ class ApproximateEmbeddingLayer(nn.Module):
         s += ')'
         return s.format(name=self.__class__.__name__, **self.__dict__)
 
-# if __name__ == '__main__':
-#     embeddings = Variable(torch.Tensor(10, 6).uniform_(-1, 1)) # vocab_size = 10, word_dim = 6
-#     ael = ApproximateEmbeddingLayer(4, 10)
-#     x = Variable(torch.Tensor(3, 4).uniform_(-1, 1)) # batch_size = 3, hid_dim = 4
-#     print ael(x, embeddings)
