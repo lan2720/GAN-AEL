@@ -1,5 +1,6 @@
 # coding:utf-8
 
+import os
 import sys
 import math
 import time
@@ -34,10 +35,11 @@ argparser.add_argument('--d_learning_rate', '-dlr', type=float, default=0.001)
 
 # resume
 argparser.add_argument('--resume', action='store_true', dest='resume')
-argparser.add_argument('--resume_path', type=str)
+argparser.add_argument('--resume_dir', type=str)
+argparser.add_argument('--resume_epoch', type=int)
 
 # save
-argparser.add_argument('--save_path', type=str)
+argparser.add_argument('--exp_dir', type=str, required=True)
 
 # model
 argparser.add_argument('--emb_dim', type=int, default=128)
@@ -105,7 +107,7 @@ def eval(valid_query_file, valid_response_file, batch_size,
         _, dec_init_state = E(embedded_post, input_lengths=posts_length.numpy())
         log_softmax_outputs = G.inference(dec_init_state, word_embeddings) # [B, T, vocab_size]
         
-        outputs = log_softmax_outputs.view(-1, vocab_size)
+        outputs = log_softmax_outputs.view(-1, len(vocab))
         mask_pos = mask(responses_var).view(-1).unsqueeze(-1)
         masked_output = outputs*(mask_pos.expand_as(outputs))
         loss = loss_func(masked_output, responses_var.view(-1))
@@ -117,9 +119,33 @@ def eval(valid_query_file, valid_response_file, batch_size,
     logger.info('Valid Loss (per case): %.2f Valid Perplexity (per word): %.2f' % (sum_loss/example_num, math.exp(sum_loss/valid_char_num)))
 
 
+def save_model(word_embeddings, encoder, generator, save_dir, epoch):
+    torch.save(word_embeddings.state_dict(), os.path.join(save_dir, 'epoch%d.word_embeddings.params.pkl' % epoch))
+    torch.save(encoder.state_dict(), os.path.join(save_dir, 'epoch%d.encoder.params.pkl' % epoch))
+    torch.save(generator.state_dict(), os.path.join(save_dir, 'epoch%d.generator.params.pkl' % epoch))
+    logger.info('Save model (epoch = %d) in %s' % (epoch, save_dir))
+    
+
+def reload_model(word_embeddings, encoder, generator, reload_dir, epoch):
+    if os.path.exists(reload_dir):
+        word_embeddings.load_state_dict(torch.load(
+            os.path.join(reload_dir, 'epoch%d.word_embeddings.params.pkl' % epoch)))
+        encoder.load_state_dict(torch.load(
+            os.path.join(reload_dir, 'epoch%d.encoder.params.pkl' % epoch)))
+        generator.load_state_dict(torch.load(
+            os.path.join(reload_dir, 'epoch%d.generator.params.pkl' % epoch)))
+        logger.info("Loading parameters from %s in epoch %d" % (reload_dir, epoch))
+    else:
+        raise RuntimeError("No stored model to load from %s" % reload_dir)
+
+
 def pretrain():
+    # set up the output directory
+    exp_dirname = os.path.join(args.exp_dir, args.mode, time.strftime("%Y-%m-%d-%H-%M-%S"))
+    os.makedirs(exp_dirname)
+
     # set up the logger
-    tqdm_logging.config(logger, 'log/pretrain.'+time.strftime("%Y-%m-%d-%H-%M-%S"), 
+    tqdm_logging.config(logger, os.path.join(exp_dirname, 'train.log'), 
                         mode='w', silent=False, debug=True)
 
     if not args.vocab_file:
@@ -156,11 +182,19 @@ def pretrain():
     logger.info('Vocabulary from ' + args.vocab_file)
     logger.info('vocabulary size: %d' % vocab_size)
     logger.info('Loading text data from ' + args.train_query_file + ' and ' + args.train_response_file)
- 
-    for e in range(args.num_epoch):
+   
+    # resume training from other experiment
+    if args.resume:
+        assert args.resume_epoch >= 0, 'If resume training, please assign resume_epoch'
+        reload_model(word_embeddings, E, G, args.resume_dir, args.resume_epoch)
+        start_epoch = args.resume_epoch + 1
+    else:
+        start_epoch = 0
+
+    for e in range(start_epoch, args.num_epoch):
         logger.info('---------------------training--------------------------')
         train_data_generator = batcher(args.train_query_file, args.train_response_file, args.batch_size)
-        logger.info("Epoch: %d/%d" % (e+1, args.num_epoch))
+        logger.info("Epoch: %d/%d" % (e, args.num_epoch))
         step = 0
         total_loss = 0.0
         total_valid_char = []
@@ -171,6 +205,8 @@ def pretrain():
             except StopIteration:
                 eval(args.valid_query_file, args.valid_response_file, args.batch_size, 
                         word_embeddings, E, G, loss_func, args.use_cuda, vocab)
+                # save model
+                save_model(word_embeddings, E, G, exp_dirname, epoch=e) 
                 break
 
 

@@ -1,0 +1,14 @@
+2018-01-29 11:43:39,712 INFO ----------------------------------
+2018-01-29 11:43:39,712 INFO Pre-train a neural conversation model
+2018-01-29 11:43:39,712 INFO ----------------------------------
+2018-01-29 11:43:39,712 INFO Args:
+2018-01-29 11:43:39,712 INFO Namespace(batch_size=168, d_learning_rate=0.001, emb_dim=128, exp_dir='exp/weibo/', g_learning_rate=0.001, hidden_dim=256, max_vocab_size=20000, mode='pretrain', n_layers=1, num_epoch=10, print_every=100, response_max_len=15, resume=False, resume_dir=None, resume_epoch=None, train_query_file='dataset/weibo/stc_weibo_train_post', train_response_file='dataset/weibo/stc_weibo_train_response', use_cuda=True, valid_query_file='dataset/weibo/stc_weibo_valid_post', valid_response_file='dataset/weibo/stc_weibo_valid_response', vocab_file='vocab.707749')
+2018-01-29 11:43:39,712 INFO Vocabulary from vocab.707749
+2018-01-29 11:43:39,712 INFO vocabulary size: 20000
+2018-01-29 11:43:39,712 INFO Loading text data from dataset/weibo/stc_weibo_train_post and dataset/weibo/stc_weibo_train_response
+2018-01-29 11:43:39,713 INFO ---------------------training--------------------------
+2018-01-29 11:43:39,713 INFO Epoch: 0/10
+2018-01-29 11:43:40,181 INFO Step     0: (per word) training perplexity 20067.24 (213.4 iters/sec)
+2018-01-29 11:44:06,195 INFO Step   100: (per word) training perplexity 644.42 (3.8 iters/sec)
+2018-01-29 11:44:32,155 INFO Step   200: (per word) training perplexity 367.47 (3.9 iters/sec)
+2018-01-29 11:44:58,091 INFO Step   300: (per word) training perplexity 317.36 (3.9 iters/sec)
