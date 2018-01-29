@@ -46,7 +46,7 @@ def predict(test_post_file, max_len, vocab, rev_vocab, word_embeddings, encoder,
         _, dec_init_state = encoder(embedded_post, input_lengths=posts_length.numpy())
         log_softmax_outputs = generator.inference(dec_init_state, word_embeddings) # [B, T, vocab_size]
         
-        hyps, _ = beam_search(dec_init_state, max_len, word_embeddings, generator, nbest=1)
+        hyps, _ = beam_search(dec_init_state, max_len, word_embeddings, generator, beam=5, penalty=1.0, nbest=1)
         results = []
         for h in hyps:
             results.append(id2sentence(h[0], rev_vocab))
