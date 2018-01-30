@@ -5,16 +5,18 @@ from textcnn import TextCNN
 
 class Discriminator(nn.Module):
     """Discriminator """
-    def __init__(self, emb_dim, filter_num, filter_sizes):
+    def __init__(self, emb_dim, filter_num, filter_sizes, dropout_p=0.5):
         super(Discriminator, self).__init__()
         # TODO: add dropout
         self.query_cnn = TextCNN(emb_dim, filter_num, filter_sizes)
         self.response_cnn = TextCNN(emb_dim, filter_num, filter_sizes)
+        self.dropout = nn.Dropout(p=dropout_p)
         self.judger = nn.Sequential(
-                        nn.Linear(2*filter_num*len(filter_sizes), 256),
+                        nn.Linear(2*filter_num*len(filter_sizes), 128),
+                        #nn.ReLU(),
+                        #nn.Linear(256, 128),
                         nn.ReLU(),
-                        nn.Linear(256, 128),
-                        nn.ReLU(),
+                        self.dropout,
                         nn.Linear(128, 1),
                         nn.Sigmoid()
                     )

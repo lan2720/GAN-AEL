@@ -9,14 +9,14 @@ import pickle
 import argparse
 import numpy as np
 
-from data import batcher, load_vocab, sentence2id, id2sentence
+from data import batcher, load_vocab, sentence2id, id2sentence, padding_inputs
 from toy import reload_model
 
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
 
-from encoder import EncoderRNN, padding_inputs
+from encoder import EncoderRNN
 from generator import Generator
 
 from utils import SYM_PAD, SYM_EOS, SYM_GO, SYM_UNK
@@ -142,6 +142,7 @@ def main():
     argparser.add_argument('--output_file', '-o', type=str)
     argparser.add_argument('--dec_algorithm', '-algo', type=str, default='greedy')
     
+
     new_args = argparser.parse_args()
    
     arg_file = os.path.join(new_args.load_path, 'args.pkl')
@@ -160,13 +161,14 @@ def main():
     word_embeddings = nn.Embedding(vocab_size, args.emb_dim, padding_idx=SYM_PAD)
     E = EncoderRNN(vocab_size, args.emb_dim, args.hidden_dim, args.n_layers, bidirectional=True, variable_lengths=True)
     G = Generator(vocab_size, args.response_max_len, args.emb_dim, 2*args.hidden_dim, args.n_layers)
-    
+
     if USE_CUDA:
         word_embeddings.cuda()
         E.cuda()
         G.cuda()
-
-    reload_model(word_embeddings, E, G, new_args.load_path, new_args.load_epoch)
+    
+    
+    reload_model(new_args.load_path, new_args.load_epoch, word_embeddings, E, G)
     
     predict(new_args.test_query_file,
             args.response_max_len,

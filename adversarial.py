@@ -27,10 +27,14 @@ def adversarial():
     argparser.add_argument('--load_path', '-p', type=str, required=True)
     # TODO: load best
     argparser.add_argument('--load_epoch', '-e', type=int, required=True)
+    
     argparser.add_argument('--filter_num', type=int, required=True)
     argparser.add_argument('--filter_sizes', type=str, required=True)
-    argparser.add_argument('--training_ratio', type=int, default=2)
 
+    argparser.add_argument('--training_ratio', type=int, default=2)
+    argparser.add_argument('--g_learning_rate', '-glr', type=float, default=0.001)
+    argparser.add_argument('--d_learning_rate', '-dlr', type=float, default=0.001)
+    argparser.add_argument('--batch_size', '-b', type=int, default=168)
     
     # new arguments used in adversarial
     new_args = argparser.parse_args()
@@ -46,6 +50,18 @@ def adversarial():
     args.mode = 'adversarial'
     #args.d_learning_rate  = 0.0001
     args.print_every = 1
+    args.g_learning_rate = new_args.g_learning_rate
+    args.d_learning_rate = new_args.d_learning_rate
+    args.batch_size = new_args.batch_size
+
+    # add new arguments
+    args.load_path = new_args.load_path
+    args.load_epoch = new_args.load_epoch
+    args.filter_num = new_args.filter_num
+    args.filter_sizes = new_args.filter_sizes
+    args.training_ratio = new_args.training_ratio
+    
+
 
     # set up the output directory
     exp_dirname = os.path.join(args.exp_dir, args.mode, time.strftime("%Y-%m-%d-%H-%M-%S"))
@@ -63,7 +79,7 @@ def adversarial():
     word_embeddings = nn.Embedding(vocab_size, args.emb_dim, padding_idx=SYM_PAD)
     E = EncoderRNN(vocab_size, args.emb_dim, args.hidden_dim, args.n_layers, args.dropout_rate, bidirectional=True, variable_lengths=True)
     G = Generator(vocab_size, args.response_max_len, args.emb_dim, 2*args.hidden_dim, args.n_layers, dropout_p=args.dropout_rate)
-    D = Discriminator(args.emb_dim, new_args.filter_num, eval(new_args.filter_sizes))
+    D = Discriminator(args.emb_dim, args.filter_num, eval(args.filter_sizes))
     
     if args.use_cuda:
         word_embeddings.cuda()
@@ -72,8 +88,7 @@ def adversarial():
         D.cuda()
 
     # define optimizer
-    G_params = list(word_embeddings.parameters()) + list(E.parameters()) + list(G.parameters())
-    opt_G = torch.optim.Adam(G_params, lr=args.g_learning_rate)
+    opt_G = torch.optim.Adam(G.rnn.parameters(), lr=args.g_learning_rate)
     opt_D = torch.optim.Adam(D.parameters(), lr=args.d_learning_rate)
     
     logger.info('----------------------------------')
@@ -88,7 +103,7 @@ def adversarial():
     logger.info('Loading text data from ' + args.train_query_file + ' and ' + args.train_response_file)
    
     
-    reload_model(new_args.load_path, new_args.load_epoch, word_embeddings, E, G)
+    reload_model(args.load_path, args.load_epoch, word_embeddings, E, G)
     #    start_epoch = args.resume_epoch + 1
     #else:
     #    start_epoch = 0
@@ -144,7 +159,7 @@ def adversarial():
             D_loss = - torch.mean(torch.log(prob_real) + torch.log(1. - prob_fake)) 
             G_loss = torch.mean(torch.log(1. - prob_fake))
             
-            if step % new_args.training_ratio == 0:
+            if step % args.training_ratio == 0:
                 opt_D.zero_grad()
                 D_loss.backward(retain_graph=True)
                 opt_D.step()
