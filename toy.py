@@ -141,6 +141,7 @@ def pretrain():
     # model
     argparser.add_argument('--emb_dim', type=int, default=128)
     argparser.add_argument('--hidden_dim', type=int, default=256)
+    argparser.add_argument('--dropout_rate', '-drop', type=float, default=0.5)
     argparser.add_argument('--n_layers', type=int, default=1)
     argparser.add_argument('--response_max_len', type=int, default=15)
 
@@ -173,8 +174,8 @@ def pretrain():
     vocab_size = len(vocab)
 
     word_embeddings = nn.Embedding(vocab_size, args.emb_dim, padding_idx=SYM_PAD)
-    E = EncoderRNN(vocab_size, args.emb_dim, args.hidden_dim, args.n_layers, bidirectional=True, variable_lengths=True)
-    G = Generator(vocab_size, args.response_max_len, args.emb_dim, 2*args.hidden_dim, args.n_layers)
+    E = EncoderRNN(vocab_size, args.emb_dim, args.hidden_dim, args.n_layers, args.dropout_rate, bidirectional=True, variable_lengths=True)
+    G = Generator(vocab_size, args.response_max_len, args.emb_dim, 2*args.hidden_dim, args.n_layers, dropout_p=args.dropout_rate)
     
     if args.use_cuda:
         word_embeddings.cuda()
