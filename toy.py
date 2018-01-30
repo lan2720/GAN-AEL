@@ -54,7 +54,6 @@ def eval(valid_query_file, valid_response_file, batch_size,
             post_sentences, response_sentences = valid_data_generator.next()
         except StopIteration:
             # one epoch finish
-            logger.info('---------------------finish-------------------------')
             break
 
         post_ids = [sentence2id(sent, vocab) for sent in post_sentences]
@@ -94,6 +93,7 @@ def eval(valid_query_file, valid_response_file, batch_size,
         valid_char_num += torch.sum(mask_pos).cpu().data.numpy()[0]
     
     logger.info('Valid Loss (per case): %.2f Valid Perplexity (per word): %.2f' % (sum_loss/example_num, math.exp(sum_loss/valid_char_num)))
+    logger.info('---------------------finish-------------------------')
 
 
 def save_model(word_embeddings, encoder, generator, save_dir, epoch):
