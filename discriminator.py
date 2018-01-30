@@ -7,6 +7,7 @@ class Discriminator(nn.Module):
     """Discriminator """
     def __init__(self, emb_dim, filter_num, filter_sizes):
         super(Discriminator, self).__init__()
+        # TODO: add dropout
         self.query_cnn = TextCNN(emb_dim, filter_num, filter_sizes)
         self.response_cnn = TextCNN(emb_dim, filter_num, filter_sizes)
         self.judger = nn.Sequential(

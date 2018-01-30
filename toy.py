@@ -9,11 +9,11 @@ import logging
 import tqdm_logging
 
 from utils import SYM_PAD, SYM_GO, SYM_EOS
-from data import batcher, build_vocab, load_vocab, sentence2id, id2sentence
+from data import batcher, build_vocab, load_vocab, padding_inputs, sentence2id, id2sentence
 
 from discriminator import Discriminator
 from generator import Generator
-from encoder import EncoderRNN, padding_inputs
+from encoder import EncoderRNN
 
 import torch
 import torch.nn as nn
@@ -96,14 +96,18 @@ def eval(valid_query_file, valid_response_file, batch_size,
     logger.info('---------------------finish-------------------------')
 
 
-def save_model(word_embeddings, encoder, generator, save_dir, epoch):
+def save_model(save_dir, epoch, 
+            word_embeddings, encoder, generator, discriminator=None):
     torch.save(word_embeddings.state_dict(), os.path.join(save_dir, 'epoch%d.word_embeddings.params.pkl' % epoch))
     torch.save(encoder.state_dict(), os.path.join(save_dir, 'epoch%d.encoder.params.pkl' % epoch))
     torch.save(generator.state_dict(), os.path.join(save_dir, 'epoch%d.generator.params.pkl' % epoch))
+    if discriminator:
+        torch.save(discriminator.state_dict(), os.path.join(save_dir, 'epoch%d.discriminator.params.pkl' % epoch))
     logger.info('Save model (epoch = %d) in %s' % (epoch, save_dir))
     
 
-def reload_model(word_embeddings, encoder, generator, reload_dir, epoch):
+def reload_model(reload_dir, epoch,
+                word_embeddings, encoder, generator, discriminator=None):
     if os.path.exists(reload_dir):
         word_embeddings.load_state_dict(torch.load(
             os.path.join(reload_dir, 'epoch%d.word_embeddings.params.pkl' % epoch)))
@@ -111,6 +115,9 @@ def reload_model(word_embeddings, encoder, generator, reload_dir, epoch):
             os.path.join(reload_dir, 'epoch%d.encoder.params.pkl' % epoch)))
         generator.load_state_dict(torch.load(
             os.path.join(reload_dir, 'epoch%d.generator.params.pkl' % epoch)))
+        if discriminator:
+            discriminator.load_state_dict(torch.load(
+                os.path.join(reload_dir, 'epoch%d.discriminator.params.pkl' % epoch)))
         logger.info("Loading parameters from %s in epoch %d" % (reload_dir, epoch))
     else:
         raise RuntimeError("No stored model to load from %s" % reload_dir)
@@ -202,7 +209,8 @@ def pretrain():
     # resume training from other experiment
     if args.resume:
         assert args.resume_epoch >= 0, 'If resume training, please assign resume_epoch'
-        reload_model(word_embeddings, E, G, args.resume_dir, args.resume_epoch)
+        reload_model(args.resume_dir, args.resume_epoch,
+                word_embeddings, E, G)
         start_epoch = args.resume_epoch + 1
     else:
         start_epoch = 0
@@ -225,7 +233,7 @@ def pretrain():
                 post_sentences, response_sentences = train_data_generator.next()
             except StopIteration:
                 # save model
-                save_model(word_embeddings, E, G, exp_dirname, epoch=e) 
+                save_model(exp_dirname, e, word_embeddings, E, G) 
                 # evaluation
                 eval(args.valid_query_file, args.valid_response_file, args.batch_size, 
                         word_embeddings, E, G, loss_func, args.use_cuda, vocab, args.response_max_len)

@@ -4,6 +4,9 @@ import jieba
 from collections import Counter
 import itertools #import from_iterable
 
+import torch
+from torch.autograd import Variable
+
 def batcher(batch_size, query_file, response_file=None, seperated=True):
     queries = []
     fq = open(query_file, 'rb')
@@ -109,6 +112,29 @@ def load_vocab(vocab_file, max_vocab=100000):
     vocab = dict([(w, i) for i, w in enumerate(words)])
     rev_vocab = dict([(i, w) for i, w in enumerate(words)])
     return vocab, rev_vocab
+
+def padding_inputs(x, max_len=None):
+    """
+    x: 均为整型的二维矩阵
+    max_len: default=None 由于x根据一个batch中最长的句子进行padding，因此不需要给定max_len
+    when max_len != None, padding according to the max_len
+    """
+    # x 整型二维列表
+    x_lens = torch.LongTensor(map(len, x))
+    if not max_len:
+        max_len = max(x_lens)
+    
+    x_inputs = Variable(torch.zeros(len(x), max_len).long(), requires_grad=False)
+
+    # 输入word id本身已经用0 padding
+    for idx, (seq, seq_len) in enumerate(zip(x, x_lens)):
+        if seq_len > max_len:
+            x_inputs[idx, :max_len] = torch.LongTensor(seq[:max_len])
+            x_lens[idx] = max_len
+        else:
+            x_inputs[idx, :seq_len] = torch.LongTensor(seq)
+
+    return x_inputs, x_lens
 
 def sentence2id(words, vocab):
     return [vocab.get(w, vocab.get('<UNK>')) for w in words]
