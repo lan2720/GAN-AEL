@@ -24,11 +24,13 @@ class BaseRNN(nn.Module):
         SYM_PAD: padding symbol
     """
 
-    def __init__(self, vocab_size, hidden_dim, dropout_p, n_layers, rnn_cell):
+    def __init__(self, vocab_size, emb_dim, hidden_dim, n_layers, dropout_p, rnn_cell):
         super(BaseRNN, self).__init__()
         self.vocab_size = vocab_size
+        self.emb_dim = emb_dim
         self.hidden_dim= hidden_dim
         self.n_layers = n_layers
+        self.dropout_p = dropout_p
         if rnn_cell.lower() == 'lstm':
             self.rnn_cell = nn.LSTM
         elif rnn_cell.lower() == 'gru':
@@ -36,7 +38,6 @@ class BaseRNN(nn.Module):
         else:
             raise ValueError("Unsupported RNN Cell: {0}".format(rnn_cell))
 
-        self.dropout_p = dropout_p
 
     def forward(self, *args, **kwargs):
         raise NotImplementedError()

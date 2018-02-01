@@ -2,7 +2,7 @@
 
 import jieba
 from collections import Counter
-import itertools #import from_iterable
+import itertools
 
 import torch
 from torch.autograd import Variable
@@ -75,8 +75,6 @@ def read_data(file, seperated=True):
 def load_data_from_file(filename):
     posts = []
     responses = []
-    # seg_list = jieba.cut("我来到北京清华大学", cut_all=False)
-    # print("Default Mode: " + "/ ".join(seg_list))  # 精确模式
     with open(filename, 'rb') as f:
         for line in f:
             parts = line.strip().split('\t')
@@ -143,7 +141,6 @@ def id2sentence(ids, rev_vocab):
     return [rev_vocab.get(i) for i in ids]
 
 if __name__ == '__main__':
-    # build_vocab('dataset/stc_weibo_train_post', 'dataset/stc_weibo_train_response')
     b = batcher('dataset/post.test', 'dataset/response.test', batch_size=3, num_epoch=2)
 
 
