@@ -1,3 +1,8 @@
+"""
+USAGE:
+    CUDA_VISIBLE_DEVICES=7 python pretrain.py -tqf=dataset/weibo/stc_weibo_train_post -trf=dataset/weibo/stc_weibo_train_response  -vqf=dataset/weibo/stc_weibo_valid_post -vrf=dataset/weibo/stc_weibo_valid_response -vf=vocab.707749 --data_name=weibo -m=pretrain -b=128  --resume --resume_dir=exp/weibo/pretrain/2018-02-01-11-40-16/ --resume_epoch=1
+"""
+
 import os
 import time
 import math
@@ -6,14 +11,12 @@ import pickle
 import argparse
 import logging
 import tqdm_logging
-from utils import build_seq2seq, eval_model, save_model, get_loss, early_stopping
+from utils import build_seq2seq, eval_model, save_model, reload_model, get_loss, early_stopping
 
 import torch
 import torch.nn as nn
-#from torch.utils.data import DataLoader
 
 from data import load_vocab, batcher
-#from dataset import DialogDataset, tokenizer
 
 
 
@@ -91,7 +94,7 @@ def training(args, encoder, decoder):
                 cur_time = time.time()
             step = step + 1
         save_model(args.exp_dir, e+1, encoder, decoder, None)
-        cur_valid_ppl = eval_model(valid_loader, vocab, encoder, decoder, loss_func, args)
+        cur_valid_ppl = eval_model(valid_batcher, vocab, encoder, decoder, loss_func, args)
         if cur_valid_ppl < best_valid_ppl:
             os.symlink(os.path.join(args.exp_dir, 'epoch%d.encoder.params.pkl' % e),
                        os.path.join(args.exp_dir, 'best.encoder.params.pkl'))

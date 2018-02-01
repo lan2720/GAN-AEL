@@ -24,16 +24,22 @@ UNK_ID = 3
 logger = logging.getLogger("GAN-AEL")
 
 def get_loss(batch, vocab, encoder, decoder, loss_fn, args): 
-    #for q, r in zip(*batch):
-    #    print ''.join(q) + ' -> ' + ''.join(r)
-    #    print '*' * 30
     post_ids = [sentence2id(sent, vocab) for sent in batch[0]]
+    # add GO
     response_ids = [[GO_ID] + sentence2id(sent, vocab) for sent in batch[1]]
-    reference_ids = [sentence2id(sent, vocab) + [EOS_ID] for sent in batch[1]]
+    reference_ids = [sentence2id(sent, vocab) for sent in batch[1]]
+
 
     posts_var, posts_length = padding_inputs(post_ids, None)
     responses_var, responses_length = padding_inputs(response_ids, args.dec_max_len)
-    references_var, references_length = padding_inputs(reference_ids, args.dec_max_len)
+    # add EOS
+    references_var, references_length = padding_inputs(reference_ids, args.dec_max_len, eos=True)
+
+    #for q, r, t in zip(posts_var.data.numpy(), responses_var.data.numpy(), references_var.data.numpy()):
+    #    print "".join(id2sentence(q, rev_vocab)).encode('utf-8')
+    #    print "".join(id2sentence(r, rev_vocab)).encode('utf-8')
+    #    print "".join(id2sentence(t, rev_vocab)).encode('utf-8')
+    #    print '*' * 30
 
     # sort by post length
     posts_length, perms_idx = posts_length.sort(0, descending=True)
@@ -74,19 +80,19 @@ def save_model(save_dir, epoch,
     logger.info('Save model (epoch = %d) in %s' % (epoch, save_dir))
 
 
-def reload_model(reload_dir, epoch, encoder, generator, discriminator=None):
+def reload_model(reload_dir, epoch, encoder, decoder, discriminator=None):
     try:
         encoder.load_state_dict(torch.load(
             os.path.join(reload_dir, 'epoch%d.encoder.params.pkl' % epoch)))
-        generator.load_state_dict(torch.load(
+        decoder.load_state_dict(torch.load(
             os.path.join(reload_dir, 'epoch%d.decoder.params.pkl' % epoch)))
         if discriminator:
             discriminator.load_state_dict(torch.load(
                 os.path.join(reload_dir, 'epoch%d.discriminator.params.pkl' % epoch)))
         logger.info("Loading parameters from %s in epoch %d" % (reload_dir, epoch))
-    except e:
-        logger.info("No stored model to load from %s" % reload_dir)
-        print e
+    except:
+        logger.info("No stored model to load from %s in epoch %d" % (reload_dir, epoch))
+        print "reload error"
         sys.exit()
 
 
@@ -147,6 +153,7 @@ def common_opt(parser):
     # resume
     parser.add_argument('--resume', action='store_true')
     parser.add_argument('--resume_dir', type=str)
+    parser.add_argument('--resume_epoch', type=int)
 
     # model
     parser.add_argument('--vocab_size', '-vs', type=int, default=100000)

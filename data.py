@@ -4,6 +4,8 @@ import jieba
 from collections import Counter
 import itertools
 
+import utils
+
 import torch
 from torch.autograd import Variable
 
@@ -111,7 +113,7 @@ def load_vocab(vocab_file, max_vocab=100000):
     rev_vocab = dict([(i, w) for i, w in enumerate(words)])
     return vocab, rev_vocab
 
-def padding_inputs(x, max_len=None):
+def padding_inputs(x, max_len=None, eos=False):
     """
     x: 均为整型的二维矩阵
     max_len: default=None 由于x根据一个batch中最长的句子进行padding，因此不需要给定max_len
@@ -126,11 +128,21 @@ def padding_inputs(x, max_len=None):
 
     # 输入word id本身已经用0 padding
     for idx, (seq, seq_len) in enumerate(zip(x, x_lens)):
-        if seq_len > max_len:
-            x_inputs[idx, :max_len] = torch.LongTensor(seq[:max_len])
-            x_lens[idx] = max_len
+        if not eos:
+            if seq_len > max_len:
+                x_inputs[idx, :max_len] = torch.LongTensor(seq[:max_len])
+                x_lens[idx] = max_len
+            else:
+                x_inputs[idx, :seq_len] = torch.LongTensor(seq)
         else:
-            x_inputs[idx, :seq_len] = torch.LongTensor(seq)
+            if seq_len > (max_len-1):
+                x_inputs[idx, :(max_len-1)] = torch.LongTensor(seq[:(max_len-1)])
+                x_inputs[idx, max_len-1] = utils.EOS_ID 
+                x_lens[idx] = max_len
+            else:
+                x_inputs[idx, :seq_len] = torch.LongTensor(seq)
+                x_inputs[idx, seq_len] = utils.EOS_ID
+                x_lens[idx] = x_lens[idx] + 1
 
     return x_inputs, x_lens
 
@@ -141,6 +153,9 @@ def id2sentence(ids, rev_vocab):
     return [rev_vocab.get(i) for i in ids]
 
 if __name__ == '__main__':
-    b = batcher('dataset/post.test', 'dataset/response.test', batch_size=3, num_epoch=2)
-
+    #b = batcher('dataset/post.test', 'dataset/response.test', batch_size=3, num_epoch=2)
+    x = [[2,4,5,3,3,1,1,4], [2,4,3,2,1], [2,1,2], [2,2,3,5,3,1]]
+    a, a_len = padding_inputs(x, 7, eos=True)
+    print a
+    print a_len
 
