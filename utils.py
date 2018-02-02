@@ -15,6 +15,8 @@ from data import sentence2id, id2sentence, padding_inputs
 
 from encoder import EncoderRNN
 from decoder import DecoderRNN
+from discriminator import Discriminator
+from ael import ApproximateEmbeddingLayer
 
 PAD_ID = 0
 GO_ID = 1
@@ -88,7 +90,7 @@ def get_gan_loss(batch, vocab, dec_max_len, use_cuda, encoder, decoder, discrimi
         output, state = decoder(state, dec_inp_var)
         # output = [b, 1, vocab_size]
         if not ael:
-            dec_inp_var = torch.max(output.squeeze(1), dim=1, keepdim=True)
+            dec_inp_var = torch.max(output.squeeze(1), dim=1, keepdim=True)[1]
             next_word_embedding = decoder.embedding(dec_inp_var)
         else:
             next_word_embedding = ael(output)
@@ -187,7 +189,7 @@ def build_gan(args, adv_args):
     decoder = DecoderRNN(args.dec_max_len, encoder.embedding, args.vocab_size, 
                       args.embedding_dim, 2*args.hidden_dim, encoder.n_layers, 
                       args.dropout_p, args.rnn_cell, use_attention=False)
-    ael = ApproximateEmbeddingLayer()
+    ael = ApproximateEmbeddingLayer(decoder.embedding)
     discriminator = Discriminator(args.embedding_dim, adv_args.filter_num, eval(adv_args.filter_sizes)) 
 
     if args.use_cuda:
@@ -248,6 +250,7 @@ def seq2seq_opt(parser):
 
 
 def adversarial_opt(parser):
+    parser.add_argument('--batch_size', type=int, required=True)
     parser.add_argument('--load_path', type=str, required=True)
     # TODO: load epoch -> load best model
     parser.add_argument('--load_prefix', type=str, required=True)
@@ -255,6 +258,7 @@ def adversarial_opt(parser):
     parser.add_argument('--training_ratio', type=int, default=2)
     parser.add_argument('--g_learning_rate', '-glr', type=float, default=0.00001)
     parser.add_argument('--d_learning_rate', '-dlr', type=float, default=0.00001)
+    parser.add_argument('--d_pretrain_learning_rate', '-dplr', type=float, default=0.001)
     
     parser.add_argument('--filter_num', type=int, default=30)
     parser.add_argument('--filter_sizes', type=str, default='[1,2,3,4]')
@@ -263,25 +267,4 @@ def make_link(src_path, dst):
     dst_path = os.path.join(os.path.dirname(os.path.abspath(src_path)), dst)
     os.symlink(os.path.basename(src_path), dst_path)
 
-
-class ApproximateEmbeddingLayer(nn.Module):
-    def __init__(self, embedding):
-        super(ApproximateEmbeddingLayer, self).__init__()
-        self.embedding = embedding
-
-
-    def forward(self, inputs):
-        """
-        Args:
-            - **inputs** (batch_size, 1, vocab_size)
-        """
-        #noise = Variable(torch.rand(inputs.size()).normal_(0., 0.1), requires_grad=False)
-        #if inputs.is_cuda:
-        #    noise = noise.cuda()
-        #score = self.out(inputs+noise)
-        assert inputs.size(1) == 1
-        inputs = inputs.squeeze(1)
-        log_p = F.log_softmax(inputs) # (B, V)
-        approximate_embeddings = torch.mm(F.softmax(inputs), self.embedding.weight) # 得到(batch_size, emb_size)
-        return approximate_embeddings.unsqueeze(1) # [b, 1, emb_dim]
 

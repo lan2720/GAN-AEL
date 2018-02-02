@@ -10,7 +10,7 @@ import pickle
 import argparse
 import logging
 import tqdm_logging
-from utils import build_gan, save_model, reload_model
+from utils import build_gan, save_model, reload_model, get_gan_loss
 
 import torch
 
@@ -26,7 +26,7 @@ def d_pretraining(args, adv_args, vocab, encoder, decoder, discriminator):
     logger.info('Pretraining discriminator (epoch = %d)' % num_epoch)
     logger.info('----------------------------------')
     
-    opt_D = torch.optim.Adam(discriminator.parameters(), lr=adv_args.d_learning_rate)
+    opt_D = torch.optim.Adam(discriminator.parameters(), lr=adv_args.d_pretrain_learning_rate)
     
     for e in range(num_epoch):
         logger.info('---------------------training--------------------------')
@@ -40,7 +40,7 @@ def d_pretraining(args, adv_args, vocab, encoder, decoder, discriminator):
             except StopIteration:
                 save_model(args.exp_dir, 'dis_pre%d' % (e+1), None, None, discriminator) 
                 break
-            D_loss, _ prob_real, _ = get_gan_loss(batch, vocab, args.dec_max_len, args.use_cuda,
+            D_loss, G_loss, prob_real, prob_fake = get_gan_loss(batch, vocab, args.dec_max_len, args.use_cuda,
                                           encoder, decoder, discriminator, None)
             
             opt_D.zero_grad()
@@ -128,6 +128,7 @@ def main():
         args = pickle.load(f)
     
     args.mode = 'adversarial'
+    args.batch_size = adv_args.batch_size
 
     # set up the output directory
     exp_dir = os.path.join('exp', args.data_name, args.mode, time.strftime("%Y-%m-%d-%H-%M-%S"))
@@ -145,6 +146,8 @@ def main():
 
     logger.info('Args:')
     logger.info(str(args))
+    logger.info('Adv Args:')
+    logger.info(str(adv_args))
 
     run(args, adv_args)
 
