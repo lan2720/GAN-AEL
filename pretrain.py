@@ -11,7 +11,7 @@ import pickle
 import argparse
 import logging
 import tqdm_logging
-from utils import build_seq2seq, eval_model, save_model, reload_model, get_loss, early_stopping
+from utils import build_seq2seq, eval_model, save_model, reload_model, get_loss, early_stopping, make_link
 
 import torch
 import torch.nn as nn
@@ -47,13 +47,7 @@ def training(args, encoder, decoder):
     opt = torch.optim.Adam(list(encoder.parameters())+list(decoder.parameters()),
                            lr=args.learning_rate)
 
-    # load data
-    train_batcher = batcher(args.batch_size, args.train_query_file, args.train_response_file)
     valid_batcher = batcher(args.batch_size, args.valid_query_file, args.valid_response_file)
-    #train_dataset = DialogDataset(args.train_query_file, args.train_response_file, tokenizer)
-    #valid_dataset = DialogDataset(args.valid_query_file, args.valid_response_file, tokenizer)
-    #train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=8)
-    #valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=True, num_workers=8)
 
     # training
     best_valid_ppl = eval_model(valid_batcher, vocab, encoder, decoder, loss_func, args)
@@ -63,6 +57,11 @@ def training(args, encoder, decoder):
     for e in range(start_epoch, args.num_epoch):
         logger.info('---------------------training--------------------------')
         logger.info("Epoch: %d/%d" % (e, args.num_epoch))
+        
+        # load data
+        train_batcher = batcher(args.batch_size, args.train_query_file, args.train_response_file)
+        valid_batcher = batcher(args.batch_size, args.valid_query_file, args.valid_response_file)
+        
         total_loss = 0.0
         total_case = 0
         cur_time = time.time() 
@@ -78,7 +77,7 @@ def training(args, encoder, decoder):
             loss.backward()
             opt.step()
             
-            total_loss += loss#.cpu().data.numpy()[0]
+            total_loss += loss
             total_case += len(batch[0])
 
             if step % args.print_every == 0:
@@ -96,17 +95,35 @@ def training(args, encoder, decoder):
         save_model(args.exp_dir, e+1, encoder, decoder, None)
         cur_valid_ppl = eval_model(valid_batcher, vocab, encoder, decoder, loss_func, args)
         if cur_valid_ppl < best_valid_ppl:
-            os.symlink(os.path.join(args.exp_dir, 'epoch%d.encoder.params.pkl' % e),
-                       os.path.join(args.exp_dir, 'best.encoder.params.pkl'))
-            os.symlink(os.path.join(args.exp_dir, 'epoch%d.decoder.params.pkl' % e),
-                       os.path.join(args.exp_dir, 'best.decoder.params.pkl'))
+            make_link(os.path.join(args.exp_dir, 'epoch%d.encoder.params.pkl' % e), 'best.encoder.params.pkl')
+            make_link(os.path.join(args.exp_dir, 'epoch%d.decoder.params.pkl' % e), 'best.decoder.params.pkl')
         # early stop
         valid_ppl_trace.append(cur_valid_ppl)
         valid_ppl_trace = valid_ppl_trace[-5:]
         if early_stopping(valid_ppl_trace, args.early_stopping):
             break
             
-        
+def gan_training(args, encoder, decoder, discriminator):
+    vocab, rev_vocab = load_vocab(args.vocab_file, max_vocab=args.vocab_size)
+
+    logger.info('----------------------------------')
+    logger.info('Adversarial-train a neural conversation model')
+    logger.info('----------------------------------')
+
+    logger.info('Args:')
+    logger.info(str(args))
+    
+    logger.info('Vocabulary from ' + args.vocab_file)
+    logger.info('Loading train data from ' + args.train_query_file + ' and ' + args.train_response_file)
+    logger.info('Loading valid data from ' + args.valid_query_file + ' and ' + args.valid_response_file)
+ 
+    # resume training from other experiment
+    if args.resume:
+        reload_model(args.resume_dir, args.resume_epoch, encoder, decoder)
+        start_epoch = args.resume_epoch + 1
+    else:
+        start_epoch = 0
+
 
 def run(args):
     encoder, decoder = build_seq2seq(args)
@@ -125,7 +142,7 @@ def main():
     os.makedirs(exp_dir)
     args.exp_dir = exp_dir
 
-    # store args for adversarial
+    # store args
     with open(os.path.join(exp_dir, 'args.pkl'), 'wb') as f:
         pickle.dump(args, f)
 
@@ -135,5 +152,8 @@ def main():
 
     run(args)
 
+
 if __name__ == '__main__':
     main()
+
+

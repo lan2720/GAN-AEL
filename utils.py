@@ -3,6 +3,7 @@ import os
 import sys
 import math
 import logging
+import numpy as np
 
 import torch
 import torch.nn as nn
@@ -81,7 +82,7 @@ def save_model(save_dir, epoch,
 
 
 def reload_model(reload_dir, epoch, encoder, decoder, discriminator=None):
-    try:
+    if os.path.exists(os.path.join(reload_dir, 'epoch%d.encoder.params.pkl' % epoch)):
         encoder.load_state_dict(torch.load(
             os.path.join(reload_dir, 'epoch%d.encoder.params.pkl' % epoch)))
         decoder.load_state_dict(torch.load(
@@ -90,9 +91,8 @@ def reload_model(reload_dir, epoch, encoder, decoder, discriminator=None):
             discriminator.load_state_dict(torch.load(
                 os.path.join(reload_dir, 'epoch%d.discriminator.params.pkl' % epoch)))
         logger.info("Loading parameters from %s in epoch %d" % (reload_dir, epoch))
-    except:
+    else:
         logger.info("No stored model to load from %s in epoch %d" % (reload_dir, epoch))
-        print "reload error"
         sys.exit()
 
 
@@ -133,8 +133,21 @@ def build_seq2seq(args):
     
     return encoder, decoder
 
-def build_gan():
-    pass
+def build_gan(args):
+    encoder = EncoderRNN(args.vocab_size, args.embedding_dim, args.hidden_dim, 
+                      args.n_layers, args.dropout_p, args.rnn_cell)
+    decoder = DecoderRNN(args.dec_max_len, encoder.embedding, args.vocab_size, 
+                      args.embedding_dim, 2*args.hidden_dim, args.projection_dim, 
+                      encoder.n_layers, args.dropout_p, args.rnn_cell, use_attention=False)
+    discriminator = Discriminator(args.embedding_dim, args.filter_num, eval(args.filter_sizes)) 
+
+    if args.use_cuda:
+        encoder = encoder.cuda()
+        decoder = decoder.cuda()
+        discriminator = discriminator.cuda()
+    
+    return encoder, decoder, discriminator
+
 
 def common_opt(parser):
     parser.add_argument('--data_name', help='the name of dataset such as weibo',
@@ -156,7 +169,7 @@ def common_opt(parser):
     parser.add_argument('--resume_epoch', type=int)
 
     # model
-    parser.add_argument('--vocab_size', '-vs', type=int, default=100000)
+    parser.add_argument('--vocab_size', '-vs', type=int, default=50000)
     parser.add_argument('--embedding_dim', type=int, default=100)
     parser.add_argument('--hidden_dim', type=int, default=256)
     parser.add_argument('--projection_dim', type=int, default=100)
@@ -182,7 +195,7 @@ def data_opt(parser):
     parser.add_argument('--vocab_file', '-vf', type=str, default='')
 
 def seq2seq_opt(parser):
-    parser.add_argument('--learning_rate', '-lr', type=float, default=0.001)
+    parser.add_argument('--learning_rate', '-lr', type=float, default=0.0001)
 
 
 def adversarial_opt(parser):
@@ -191,8 +204,11 @@ def adversarial_opt(parser):
     parser.add_argument('--d_learning_rate', '-dlr', type=float, default=0.001)
     parser.add_argument('--filter_num', type=int, required=True)
     parser.add_argument('--filter_sizes', type=str, required=True)
-
      
+def make_link(src_path, dst):
+    dst_path = os.path.join(os.path.dirname(os.path.abspath(src_path)), dst)
+    os.symlink(os.path.basename(src_path), dst_path)
+
 
 class ApproximateEmbeddingLayer(nn.Module):
     r"""

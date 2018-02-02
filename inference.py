@@ -51,8 +51,8 @@ def predict(test_post_file, vocab, rev_vocab, encoder, decoder, args, output_fil
             results.append(id2sentence(h[0], rev_vocab))
 
         print('*******************************************************')
-        print("post:" + ' '.join(post_sentence[0]).encode('utf-8'))
-        print("response:\n" + '\n'.join([' '.join(r) for r in results]).encode('utf-8'))
+        print("post:" + ''.join(post_sentence[0]).encode('utf-8'))
+        print("response:\n" + '\n'.join([''.join(r) for r in results]).encode('utf-8'))
         print('')
 
     if output_file:
