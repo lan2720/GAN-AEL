@@ -10,24 +10,22 @@ class Discriminator(nn.Module):
         self.query_cnn = TextCNN(emb_dim, filter_num, filter_sizes)
         self.response_cnn = TextCNN(emb_dim, filter_num, filter_sizes)
         self.judger = nn.Sequential(
-                        nn.Linear(2*filter_num*len(filter_sizes), 128),
+                        nn.Linear(2*filter_num*len(filter_sizes), 64),
                         #nn.ReLU(),
                         #nn.Linear(256, 128),
                         nn.ReLU(),
                         nn.Dropout(p=dropout_p),
-                        nn.Linear(128, 1),
+                        nn.Linear(64, 1),
                         nn.Sigmoid()
                     )
 
     def forward(self, query, response):
         """
         Args:
-            - **query** [B, max_len]
+            - **query** [B, max_len, emb_dim]
         Output:
             The probability of real
         """
-        # embedded_query = word_embeddings(query)
-        # embedded_response = word_embeddings(response)
         query_features = self.query_cnn(query) # [B, T, D] -> [B, all_features]
         response_features = self.response_cnn(response)
         inputs = torch.cat((query_features, response_features), 1)

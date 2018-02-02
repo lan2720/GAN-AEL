@@ -11,7 +11,7 @@ import pickle
 import argparse
 import logging
 import tqdm_logging
-from utils import build_seq2seq, eval_model, save_model, reload_model, get_loss, early_stopping, make_link
+from utils import build_seq2seq, eval_model, save_model, reload_model, get_seq2seq_loss, early_stopping, make_link
 
 import torch
 import torch.nn as nn
@@ -38,10 +38,7 @@ def training(args, encoder, decoder):
  
     # resume training from other experiment
     if args.resume:
-        reload_model(args.resume_dir, args.resume_epoch, encoder, decoder)
-        start_epoch = args.resume_epoch + 1
-    else:
-        start_epoch = 0
+        reload_model(args.resume_dir, args.resume_prefix, encoder, decoder)
 
     loss_func = nn.CrossEntropyLoss(ignore_index=utils.PAD_ID) 
     opt = torch.optim.Adam(list(encoder.parameters())+list(decoder.parameters()),
@@ -50,11 +47,11 @@ def training(args, encoder, decoder):
     valid_batcher = batcher(args.batch_size, args.valid_query_file, args.valid_response_file)
 
     # training
-    best_valid_ppl = eval_model(valid_batcher, vocab, encoder, decoder, loss_func, args)
     valid_ppl_trace = []
-    # initial save
-    save_model(args.exp_dir, start_epoch, encoder, decoder, None)
-    for e in range(start_epoch, args.num_epoch):
+    best_valid_ppl = eval_model(valid_batcher, vocab, encoder, decoder, loss_func, args)
+    valid_ppl_trace.append(best_valid_ppl)
+    
+    for e in range(args.num_epoch):
         logger.info('---------------------training--------------------------')
         logger.info("Epoch: %d/%d" % (e, args.num_epoch))
         
@@ -71,7 +68,7 @@ def training(args, encoder, decoder):
                 batch = train_batcher.next()
             except:
                 break
-            loss = get_loss(batch, vocab, encoder, decoder, loss_func, args)
+            loss = get_seq2seq_loss(batch, vocab, encoder, decoder, loss_func, args)
             
             opt.zero_grad()
             loss.backward()
@@ -92,38 +89,21 @@ def training(args, encoder, decoder):
                 total_case = 0
                 cur_time = time.time()
             step = step + 1
-        save_model(args.exp_dir, e+1, encoder, decoder, None)
+        save_model(args.exp_dir, 's2s%d' % (e+1), encoder, decoder, None)
         cur_valid_ppl = eval_model(valid_batcher, vocab, encoder, decoder, loss_func, args)
         if cur_valid_ppl < best_valid_ppl:
-            make_link(os.path.join(args.exp_dir, 'epoch%d.encoder.params.pkl' % e), 'best.encoder.params.pkl')
-            make_link(os.path.join(args.exp_dir, 'epoch%d.decoder.params.pkl' % e), 'best.decoder.params.pkl')
+            make_link(os.path.join(args.exp_dir,
+                     's2s%d.encoder.params.pkl' % (e+1)),
+                     'best.encoder.params.pkl')
+            make_link(os.path.join(args.exp_dir,
+                     's2s%d.decoder.params.pkl' % (e+1)),
+                     'best.decoder.params.pkl')
         # early stop
         valid_ppl_trace.append(cur_valid_ppl)
         valid_ppl_trace = valid_ppl_trace[-5:]
         if early_stopping(valid_ppl_trace, args.early_stopping):
             break
             
-def gan_training(args, encoder, decoder, discriminator):
-    vocab, rev_vocab = load_vocab(args.vocab_file, max_vocab=args.vocab_size)
-
-    logger.info('----------------------------------')
-    logger.info('Adversarial-train a neural conversation model')
-    logger.info('----------------------------------')
-
-    logger.info('Args:')
-    logger.info(str(args))
-    
-    logger.info('Vocabulary from ' + args.vocab_file)
-    logger.info('Loading train data from ' + args.train_query_file + ' and ' + args.train_response_file)
-    logger.info('Loading valid data from ' + args.valid_query_file + ' and ' + args.valid_response_file)
- 
-    # resume training from other experiment
-    if args.resume:
-        reload_model(args.resume_dir, args.resume_epoch, encoder, decoder)
-        start_epoch = args.resume_epoch + 1
-    else:
-        start_epoch = 0
-
 
 def run(args):
     encoder, decoder = build_seq2seq(args)

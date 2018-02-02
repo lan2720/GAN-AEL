@@ -1,7 +1,7 @@
 # coding:utf-8
 """
 USEAGE:
-    CUDA_VISIBLE_DEVICES=5 python inference.py --test_query_file=dataset/weibo/stc_weibo_valid_post --load_path=exp/weibo/pretrain/2018-02-01-11-40-16/  --load_epoch=0
+    CUDA_VISIBLE_DEVICES=5 python inference.py --test_query_file=dataset/weibo/stc_weibo_valid_post --load_path=exp/weibo/pretrain/2018-02-01-11-40-16/  --load_prefix=best
 """
 import os
 import pickle
@@ -133,7 +133,7 @@ def main():
 
     encoder, decoder = build_seq2seq(args) 
     
-    reload_model(pred_args.load_path, pred_args.load_epoch, encoder, decoder)
+    reload_model(pred_args.load_path, pred_args.load_prefix, encoder, decoder)
     
     predict(pred_args.test_query_file,
             vocab, rev_vocab,
