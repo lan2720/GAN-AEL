@@ -20,13 +20,13 @@ from data import load_vocab, batcher
 logger = logging.getLogger("GAN-AEL")
 
 
-def d_pretraining(args, vocab, encoder, decoder, discriminator):
+def d_pretraining(args, adv_args, vocab, encoder, decoder, discriminator):
     num_epoch = 2
     logger.info('----------------------------------')
     logger.info('Pretraining discriminator (epoch = %d)' % num_epoch)
     logger.info('----------------------------------')
     
-    opt_D = torch.optim.Adam(discriminator.parameters(), lr=args.d_learning_rate)
+    opt_D = torch.optim.Adam(discriminator.parameters(), lr=adv_args.d_learning_rate)
     
     for e in range(num_epoch):
         logger.info('---------------------training--------------------------')
@@ -57,14 +57,14 @@ def d_pretraining(args, vocab, encoder, decoder, discriminator):
             step = step + 1
  
 
-def adv_training(args, vocab, encoder, decoder, discriminator, ael):
+def adv_training(args, adv_args, vocab, encoder, decoder, discriminator, ael):
     logger.info('----------------------------------')
     logger.info('Adversarial-training discriminator & generator')
     logger.info('----------------------------------')
 
     # define optimizer
-    opt_G = torch.optim.Adam(decoder.rnn.parameters(), lr=args.g_learning_rate)
-    opt_D = torch.optim.Adam(discriminator.parameters(), lr=args.d_learning_rate)
+    opt_G = torch.optim.Adam(decoder.rnn.parameters(), lr=adv_args.g_learning_rate)
+    opt_D = torch.optim.Adam(discriminator.parameters(), lr=adv_args.d_learning_rate)
     
     for e in range(args.num_epoch):
         logger.info('---------------------training--------------------------')
@@ -84,7 +84,7 @@ def adv_training(args, vocab, encoder, decoder, discriminator, ael):
             # ael is necessary because of adversarial
             D_loss, G_loss, prob_real, prob_fake = get_gan_loss(batch, vocab, args.dec_max_len, args.use_cuda, encoder, decoder, discriminator, ael)
             
-            if step % args.training_ratio == 0:
+            if step % adv_args.training_ratio == 0:
                 opt_D.zero_grad()
                 D_loss.backward(retain_graph=True)
                 opt_D.step()
@@ -104,16 +104,16 @@ def adv_training(args, vocab, encoder, decoder, discriminator, ael):
             step = step + 1
             
 
-def run(args):
+def run(args, adv_args):
     vocab, _ = load_vocab(args.vocab_file, max_vocab=args.vocab_size)
     # build
-    encoder, decoder, ael, discriminator = build_gan(args)
+    encoder, decoder, ael, discriminator = build_gan(args, adv_args)
     # load params
-    reload_model(args.load_path, args.load_prefix, encoder, decoder, None)
+    reload_model(adv_args.load_path, adv_args.load_prefix, encoder, decoder, None)
     
     # training
-    d_pretraining(args, vocab, encoder, decoder, discriminator)
-    adv_training(args, vocab, encoder, decoder, discriminator, ael)
+    d_pretraining(args, adv_args, vocab, encoder, decoder, discriminator)
+    adv_training(args, adv_args, vocab, encoder, decoder, discriminator, ael)
 
 def main():
     parser = argparse.ArgumentParser('adversarial')
@@ -146,7 +146,7 @@ def main():
     logger.info('Args:')
     logger.info(str(args))
 
-    run(args)
+    run(args, adv_args)
 
 
 if __name__ == '__main__':

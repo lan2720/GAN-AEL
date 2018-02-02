@@ -181,14 +181,14 @@ def build_seq2seq(args):
     
     return encoder, decoder
 
-def build_gan(args):
+def build_gan(args, adv_args):
     encoder = EncoderRNN(args.vocab_size, args.embedding_dim, args.hidden_dim, 
                       args.n_layers, args.dropout_p, args.rnn_cell)
     decoder = DecoderRNN(args.dec_max_len, encoder.embedding, args.vocab_size, 
                       args.embedding_dim, 2*args.hidden_dim, encoder.n_layers, 
                       args.dropout_p, args.rnn_cell, use_attention=False)
     ael = ApproximateEmbeddingLayer()
-    discriminator = Discriminator(args.embedding_dim, args.filter_num, eval(args.filter_sizes)) 
+    discriminator = Discriminator(args.embedding_dim, adv_args.filter_num, eval(adv_args.filter_sizes)) 
 
     if args.use_cuda:
         encoder = encoder.cuda()
