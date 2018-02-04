@@ -23,4 +23,4 @@ class ApproximateEmbeddingLayer(nn.Module):
         log_p = F.log_softmax(inputs) # (B, V)
         approximate_embeddings = torch.mm(F.softmax(inputs), self.embedding.weight) # (batch_size, emb_size)
         return approximate_embeddings.unsqueeze(1) # [b, 1, emb_dim]
-
+    

@@ -3,6 +3,7 @@ import os
 import sys
 import math
 import logging
+import numpy as np
 
 import torch
 import torch.nn as nn
@@ -71,19 +72,37 @@ def get_seq2seq_loss(batch, vocab, encoder, decoder, loss_fn, args):
                      references_var.view(-1))
     return loss
 
-def get_gan_loss(batch, vocab, dec_max_len, use_cuda, encoder, decoder, discriminator, ael=None):
+def mask(var):
+    return torch.gt(var, 0).float()
+
+
+def check_go_embedding(args):
+    encoder = EncoderRNN(args.vocab_size, args.embedding_dim, args.hidden_dim, 
+                      args.n_layers, args.dropout_p, args.rnn_cell)
+    
+    encoder.load_state_dict(torch.load(
+            os.path.join(args.resume_dir, '%s.encoder.params.pkl' % args.resume_prefix)))
+    go_vec = encoder.embedding.weight.cpu().data.numpy()
+    assert go_vec.shape == (args.vocab_size, args.embedding_dim)
+    return np.mean(go_vec, axis=1), np.var(go_vec, axis=1)
+
+
+def get_gan_loss(batch, vocab, dec_max_len, use_cuda, encoder, decoder, discriminator, ael=None, noise_go=False):
     """
     Outputs:
         - **D_loss**
         - **G_loss**
     """
     posts_var, posts_length, responses_var, _, _, _ = get_variables(batch, vocab, dec_max_len, use_cuda)
+
+    # mask
+    masked = mask(responses_var)
+
     _, dec_init_state = encoder(posts_var, inputs_length=posts_length.numpy())
 
     # greedy decoding
     outputs = []
     state = dec_init_state
-    dec_inp_var = Variable(torch.LongTensor([[GO_ID]]*posts_var.size(0)), requires_grad=False)
     if use_cuda:
         dec_inp_var = dec_inp_var.cuda() # [b, 1]
     for i in  range(dec_max_len):
@@ -97,6 +116,8 @@ def get_gan_loss(batch, vocab, dec_max_len, use_cuda, encoder, decoder, discrimi
         outputs.append(next_word_embedding) # [b, 1, emb_dim]
 
     fake_responses = torch.cat(outputs, dim=1) # [b, T, emb_dim]
+    fake_responses = fake_responses * (masked.unsqueeze(-1).expand_as(fake_responses))
+    
     real_responses = decoder.embedding(responses_var)
     embedded_posts = encoder.embedding(posts_var)
 
@@ -209,8 +230,8 @@ def common_opt(parser):
     parser.add_argument('--exp_dir', type=str, default=None)
     
     # train
-    parser.add_argument('--batch_size', '-b', type=int, default=168)
-    parser.add_argument('--num_epoch', '-e', type=int, default=10)
+    parser.add_argument('--batch_size', '-b', type=int, default=180)
+    parser.add_argument('--num_epoch', '-ne', type=int, default=10)
     parser.add_argument('--print_every', type=int, default=100)
     parser.add_argument('--use_cuda', default=True)
     parser.add_argument('--early_stopping', type=float, default=0.1)
@@ -246,7 +267,7 @@ def data_opt(parser):
     parser.add_argument('--vocab_file', '-vf', type=str, default='')
 
 def seq2seq_opt(parser):
-    parser.add_argument('--learning_rate', '-lr', type=float, default=0.0001)
+    parser.add_argument('--learning_rate', '-lr', type=float, default=0.001)
 
 
 def adversarial_opt(parser):

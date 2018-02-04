@@ -1,6 +1,8 @@
 """
 USAGE:
-    CUDA_VISIBLE_DEVICES=7 python pretrain.py -tqf=dataset/weibo/stc_weibo_train_post -trf=dataset/weibo/stc_weibo_train_response  -vqf=dataset/weibo/stc_weibo_valid_post -vrf=dataset/weibo/stc_weibo_valid_response -vf=vocab.707749 --data_name=weibo -m=pretrain -b=128  --resume --resume_dir=exp/weibo/pretrain/2018-02-01-11-40-16/ --resume_epoch=1
+    CUDA_VISIBLE_DEVICES=4 python adversarial.py --load_path=exp/weibo/pretrain/2018-02-02-13-37-43/ --load_prefix=best --batch_size=80 --d_pretrain_learning_rate=0.0001
+
+
 """
 
 import os

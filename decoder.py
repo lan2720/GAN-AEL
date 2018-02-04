@@ -17,16 +17,16 @@ class DecoderRNN(BaseRNN):
                 dropout_p=0,
                 rnn_cell='gru',
                 use_attention=False
+                # TODO
+                #noise_out=False
                 ):
         super(DecoderRNN, self).__init__(vocab_size, emb_dim, hidden_dim, n_layers, dropout_p, rnn_cell)
         self.max_len = max_len
         self.embedding = embedding
         self.rnn = self.rnn_cell(emb_dim, hidden_dim, n_layers,
                                  batch_first=True, dropout=dropout_p, bidirectional=False)
-        self.proj = nn.Sequential(
-                    nn.Dropout(dropout_p),
-                    nn.Linear(hidden_dim, vocab_size)
-                    )
+        self.proj = nn.Sequential(nn.Dropout(dropout_p),
+                                  nn.Linear(hidden_dim, vocab_size))
 
     def forward(self, state, inputs):
         """

@@ -92,6 +92,9 @@ def training(args, encoder, decoder):
         save_model(args.exp_dir, 's2s%d' % (e+1), encoder, decoder, None)
         cur_valid_ppl = eval_model(valid_batcher, vocab, encoder, decoder, loss_func, args)
         if cur_valid_ppl < best_valid_ppl:
+            if os.path.exists(os.path.join(args.exp_dir, 'best.encoder.params.pkl')):
+                os.remove(os.path.join(args.exp_dir, 'best.encoder.params.pkl'))
+                os.remove(os.path.join(args.exp_dir, 'best.decoder.params.pkl'))
             make_link(os.path.join(args.exp_dir,
                      's2s%d.encoder.params.pkl' % (e+1)),
                      'best.encoder.params.pkl')
@@ -116,7 +119,7 @@ def main():
     utils.data_opt(parser)
     utils.seq2seq_opt(parser)
     args = parser.parse_args()
-
+    
     # set up the output directory
     exp_dir = os.path.join('exp', args.data_name, args.mode, time.strftime("%Y-%m-%d-%H-%M-%S"))
     os.makedirs(exp_dir)
@@ -129,8 +132,12 @@ def main():
     # set up the logger
     tqdm_logging.config(logger, os.path.join(exp_dir, '%s.log' % args.mode), 
                         mode='w', silent=False, debug=True)
-
+    
     run(args)
+    
+    #mean, var = check_go_embedding(args)
+    #for i, j in zip(mean[:10], var[:10]):
+    #    print "embedding: mean %.2f var %.2f" % (i, j)
 
 
 if __name__ == '__main__':
