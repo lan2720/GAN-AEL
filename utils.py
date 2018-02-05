@@ -86,7 +86,6 @@ def check_go_embedding(args):
     assert go_vec.shape == (args.vocab_size, args.embedding_dim)
     return np.mean(go_vec, axis=1), np.var(go_vec, axis=1)
 
-
 def get_gan_loss(batch, vocab, args, encoder, decoder, discriminator, ael=None, noise_go=False):
     """
     Outputs:

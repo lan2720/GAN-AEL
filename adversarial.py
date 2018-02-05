@@ -52,10 +52,11 @@ def d_pretraining(args, adv_args, vocab, encoder, decoder, discriminator):
             
             total_case += len(batch[0])
             if step % args.print_every == 0:
-                logger.info('Step %5d: D loss=%.2f D accuracy=%.2f (%.1f cases/sec)' % (
+                logger.info('Step %5d: D loss=%.2f D accuracy=%.2f (real) %.2f (fake) (%.1f cases/sec)' % (
                     step, 
                     D_loss.cpu().data.numpy()[0],
-                    prob_real.cpu().data.numpy().mean(), 
+                    prob_real.cpu().data.numpy().mean(),
+                    prob_fake.cpu().data.numpy().mean(),
                     total_case/(time.time()-cur_time)))
                 cur_time = time.time()
                 total_case = 0
@@ -123,8 +124,6 @@ def run(args, adv_args):
     d_pretraining(args, adv_args, vocab, encoder, decoder, discriminator)
     adv_training(args, adv_args, vocab, encoder, decoder, discriminator, ael)
 
-#def haha():
-
 
 def main():
     parser = argparse.ArgumentParser('adversarial')
@@ -165,5 +164,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
 
 
