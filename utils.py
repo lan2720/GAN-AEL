@@ -103,6 +103,7 @@ def get_gan_loss(batch, vocab, dec_max_len, use_cuda, encoder, decoder, discrimi
     # greedy decoding
     outputs = []
     state = dec_init_state
+    dec_inp_var = Variable(torch.LongTensor([[GO_ID]]*posts_var.size(0)), requires_grad=False)
     if use_cuda:
         dec_inp_var = dec_inp_var.cuda() # [b, 1]
     for i in  range(dec_max_len):
