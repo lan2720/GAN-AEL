@@ -36,26 +36,29 @@ def d_pretraining(args, adv_args, vocab, encoder, decoder, discriminator):
         train_batcher = batcher(args.batch_size, args.train_query_file, args.train_response_file)
         step = 0
         cur_time = time.time() 
+        total_case = 0
         while True:
             try:
                 batch = train_batcher.next()
             except StopIteration:
                 save_model(args.exp_dir, 'dis_pre%d' % (e+1), None, None, discriminator) 
                 break
-            D_loss, G_loss, prob_real, prob_fake = get_gan_loss(batch, vocab, args.dec_max_len, args.use_cuda,
+            D_loss, G_loss, prob_real, prob_fake = get_gan_loss(batch, vocab, args,
                                           encoder, decoder, discriminator, None)
             
             opt_D.zero_grad()
             D_loss.backward()
             opt_D.step()
             
+            total_case += len(batch[0])
             if step % args.print_every == 0:
-                logger.info('Step %5d: D loss=%.2f D accuracy=%.2f (%.1f iters/sec)' % (
+                logger.info('Step %5d: D loss=%.2f D accuracy=%.2f (%.1f cases/sec)' % (
                     step, 
                     D_loss.cpu().data.numpy()[0],
                     prob_real.cpu().data.numpy().mean(), 
-                    args.print_every/(time.time()-cur_time)))
+                    total_case/(time.time()-cur_time)))
                 cur_time = time.time()
+                total_case = 0
             step = step + 1
  
 
@@ -77,6 +80,7 @@ def adv_training(args, adv_args, vocab, encoder, decoder, discriminator, ael):
         
         cur_time = time.time() 
         step = 0
+        total_case = 0
         while True:
             try:
                 batch = train_batcher.next()
@@ -84,25 +88,27 @@ def adv_training(args, adv_args, vocab, encoder, decoder, discriminator, ael):
                 save_model(args.exp_dir, 'adv%d' % (e+1), encoder, decoder, discriminator)
                 break
             # ael is necessary because of adversarial
-            D_loss, G_loss, prob_real, prob_fake = get_gan_loss(batch, vocab, args.dec_max_len, args.use_cuda, encoder, decoder, discriminator, ael)
+            D_loss, G_loss, prob_real, prob_fake = get_gan_loss(batch, vocab, args, encoder, decoder, discriminator, ael)
             
             if step % adv_args.training_ratio == 0:
                 opt_D.zero_grad()
                 D_loss.backward(retain_graph=True)
                 opt_D.step()
             
+            total_case += len(batch[0])
             opt_G.zero_grad()
             G_loss.backward()
             opt_G.step()
 
             if step % args.print_every == 0:
-                logger.info('Step %5d: D accuracy=%.2f (%.2f) (0.5 for D to converge) D score=%.2f (-1.38 for G to converge) (%.1f iters/sec)' % (
+                logger.info('Step %5d: D accuracy=%.2f (%.2f) (0.5 for D to converge) D score=%.2f (-1.38 for G to converge) (%.1f cases/sec)' % (
                     step, 
                     prob_real.cpu().data.numpy().mean(), 
                     prob_fake.cpu().data.numpy().mean(), 
                     -D_loss.cpu().data.numpy()[0], 
-                    args.print_every/(time.time()-cur_time)))
+                    total_case/(time.time()-cur_time)))
                 cur_time = time.time()
+                total_case = 0
             step = step + 1
             
 
@@ -116,6 +122,9 @@ def run(args, adv_args):
     # training
     d_pretraining(args, adv_args, vocab, encoder, decoder, discriminator)
     adv_training(args, adv_args, vocab, encoder, decoder, discriminator, ael)
+
+#def haha():
+
 
 def main():
     parser = argparse.ArgumentParser('adversarial')

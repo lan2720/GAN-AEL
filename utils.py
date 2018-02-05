@@ -87,13 +87,13 @@ def check_go_embedding(args):
     return np.mean(go_vec, axis=1), np.var(go_vec, axis=1)
 
 
-def get_gan_loss(batch, vocab, dec_max_len, use_cuda, encoder, decoder, discriminator, ael=None, noise_go=False):
+def get_gan_loss(batch, vocab, args, encoder, decoder, discriminator, ael=None, noise_go=False):
     """
     Outputs:
         - **D_loss**
         - **G_loss**
     """
-    posts_var, posts_length, responses_var, _, _, _ = get_variables(batch, vocab, dec_max_len, use_cuda)
+    posts_var, posts_length, responses_var, _, _, _ = get_variables(batch, vocab, args.dec_max_len, args.use_cuda)
 
     # mask
     masked = mask(responses_var)
@@ -103,17 +103,25 @@ def get_gan_loss(batch, vocab, dec_max_len, use_cuda, encoder, decoder, discrimi
     # greedy decoding
     outputs = []
     state = dec_init_state
-    dec_inp_var = Variable(torch.LongTensor([[GO_ID]]*posts_var.size(0)), requires_grad=False)
-    if use_cuda:
-        dec_inp_var = dec_inp_var.cuda() # [b, 1]
-    for i in  range(dec_max_len):
-        output, state = decoder(state, dec_inp_var)
+    for i in  range(args.dec_max_len):
+        if i == 0:
+            if noise_go:
+                noise_embedding = Variable(torch.Tensor(1, args.embedding_dim).normal_(-0.02, 0.02), requires_grad=False)
+                next_word_embedding = torch.stack([noise_embedding]*posts_var.size(0), 0)
+                if args.use_cuda:
+                    next_word_embedding = next_word_embedding.cuda() # [b, 1, emb_dim]
+            else:
+                dec_inp_var = Variable(torch.LongTensor([[GO_ID]]*posts_var.size(0)), requires_grad=False)
+                if args.use_cuda:
+                    dec_inp_var = dec_inp_var.cuda() # [b, 1]
+                next_word_embedding = decoder.embedding(dec_inp_var)
+        output, state = decoder.rnn(next_word_embedding, state)
         # output = [b, 1, vocab_size]
-        if not ael:
+        if ael:
+            next_word_embedding = ael(output)
+        else:
             dec_inp_var = torch.max(output.squeeze(1), dim=1, keepdim=True)[1]
             next_word_embedding = decoder.embedding(dec_inp_var)
-        else:
-            next_word_embedding = ael(output)
         outputs.append(next_word_embedding) # [b, 1, emb_dim]
 
     fake_responses = torch.cat(outputs, dim=1) # [b, T, emb_dim]
