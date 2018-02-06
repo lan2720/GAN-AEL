@@ -105,7 +105,7 @@ def get_gan_loss(batch, vocab, args, encoder, decoder, discriminator, ael=None, 
     for i in  range(args.dec_max_len):
         if i == 0:
             if noise_go:
-                noise_embedding = Variable(torch.Tensor(1, args.embedding_dim).normal_(-0.02, 0.02), requires_grad=False)
+                noise_embedding = Variable(torch.Tensor(1, args.embedding_dim).normal_(0.02, 0.01), requires_grad=False)
                 next_word_embedding = torch.stack([noise_embedding]*posts_var.size(0), 0)
                 if args.use_cuda:
                     next_word_embedding = next_word_embedding.cuda() # [b, 1, emb_dim]
